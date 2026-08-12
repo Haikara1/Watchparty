@@ -1,0 +1,323 @@
+.form {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 1.5rem;
+}
+
+
+.field {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 0.5rem;
+}
+
+
+.field label {
+    color: var(--color-text);
+
+    font-size: 0.9rem;
+
+    font-weight: 600;
+}
+
+
+.field input {
+    width: 100%;
+
+    padding: 0.85rem 1rem;
+
+    border: 1px solid var(--color-border);
+
+    border-radius: var(--radius-md);
+
+    outline: none;
+
+    background:
+        rgba(255, 255, 255, 0.04);
+
+    color: var(--color-text);
+
+    transition:
+        border-color var(--transition-normal),
+        background var(--transition-normal),
+        box-shadow var(--transition-normal);
+}
+
+
+.field input::placeholder {
+    color: var(--color-text-muted);
+}
+
+
+.field input:focus {
+    border-color: var(--color-primary);
+
+    background:
+        rgba(255, 255, 255, 0.06);
+
+    box-shadow:
+        0 0 0 3px
+        rgba(124, 58, 237, 0.12);
+}
+
+
+.meta {
+    display: flex;
+
+    justify-content: space-between;
+
+    gap: 1rem;
+}
+
+
+.hint {
+    color: var(--color-text-muted);
+
+    font-size: 0.75rem;
+}
+
+
+.counter {
+    color: var(--color-text-muted);
+
+    font-size: 0.75rem;
+}
+
+
+.error {
+    color: #f87171;
+
+    font-size: 0.8rem;
+}
+
+
+.submit {
+    width: 100%;
+
+    padding: 0.9rem 1rem;
+
+    border: none;
+
+    border-radius: var(--radius-md);
+
+    background: var(--color-primary);
+
+    color: #fff;
+
+    font-weight: 600;
+
+    transition:
+        background var(--transition-normal),
+        transform var(--transition-normal);
+}
+
+
+.submit:hover {
+    background: var(--color-primary-hover);
+
+    transform: translateY(-1px);
+}
+
+.label {
+    color: var(--color-text);
+
+    font-size: 0.9rem;
+
+    font-weight: 600;
+}
+
+
+.roomTypes {
+    display: grid;
+
+    grid-template-columns: 1fr 1fr;
+
+    gap: 0.75rem;
+}
+
+
+.roomType {
+    display: flex;
+
+    align-items: flex-start;
+
+    gap: 0.75rem;
+
+    min-width: 0;
+
+    padding: 1rem;
+
+    border: 1px solid var(--color-border);
+
+    border-radius: var(--radius-md);
+
+    background:
+        rgba(255, 255, 255, 0.03);
+
+    color: var(--color-text-secondary);
+
+    text-align: left;
+
+    cursor: pointer;
+
+    transition:
+        border-color var(--transition-normal),
+        background var(--transition-normal),
+        transform var(--transition-normal);
+}
+
+
+.roomType:hover {
+    background:
+        rgba(255, 255, 255, 0.05);
+
+    transform: translateY(-1px);
+}
+
+
+.roomType.active {
+    border-color: var(--color-primary);
+
+    background:
+        rgba(124, 58, 237, 0.1);
+
+    box-shadow:
+        0 0 0 1px
+        rgba(124, 58, 237, 0.15);
+}
+
+
+.roomTypeIcon {
+    flex-shrink: 0;
+
+    font-size: 1.25rem;
+}
+
+
+.roomType strong {
+    display: block;
+
+    margin-bottom: 0.25rem;
+
+    color: var(--color-text);
+
+    font-size: 0.85rem;
+}
+
+
+.roomType small {
+    display: block;
+
+    color: var(--color-text-muted);
+
+    font-size: 0.7rem;
+
+    line-height: 1.4;
+}
+
+
+@media (max-width: 500px) {
+
+    .roomTypes {
+        grid-template-columns: 1fr;
+    }
+
+}
+.userLimits {
+    display: grid;
+
+    grid-template-columns:
+        repeat(5, 1fr);
+
+    gap: 0.6rem;
+}
+
+
+.userLimit {
+    display: grid;
+
+    place-items: center;
+
+    min-height: 48px;
+
+    border: 1px solid var(--color-border);
+
+    border-radius: var(--radius-md);
+
+    background:
+        rgba(255, 255, 255, 0.03);
+
+    color: var(--color-text-secondary);
+
+    font-size: 0.95rem;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition:
+        border-color var(--transition-normal),
+        background var(--transition-normal),
+        color var(--transition-normal),
+        transform var(--transition-normal);
+}
+
+
+.userLimit:hover {
+    background:
+        rgba(255, 255, 255, 0.06);
+
+    transform: translateY(-1px);
+}
+
+
+.userLimit.active {
+    border-color: var(--color-primary);
+
+    background:
+        rgba(124, 58, 237, 0.15);
+
+    color: var(--color-text);
+
+    box-shadow:
+        0 0 0 1px
+        rgba(124, 58, 237, 0.15);
+}
+
+.field input[type="url"] {
+    font-family: monospace;
+
+    font-size: 0.85rem;
+}
+
+.inputError {
+    border-color: #ef4444 !important;
+
+    box-shadow:
+        0 0 0 3px
+        rgba(239, 68, 68, 0.1);
+}
+
+
+.error {
+    display: block;
+
+    color: #f87171;
+
+    font-size: 0.8rem;
+
+    line-height: 1.4;
+}
+
+
+.submit:disabled {
+    opacity: 0.65;
+
+    cursor: not-allowed;
+
+    transform: none;
+}

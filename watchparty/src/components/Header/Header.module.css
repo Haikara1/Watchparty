@@ -1,0 +1,194 @@
+.header {
+    position: absolute;
+
+    top: 0;
+    left: 0;
+
+    width: 100%;
+
+    z-index: 10;
+
+    padding: 1.5rem 0;
+}
+
+
+.container {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 2rem;
+}
+
+
+/* =========================
+   LOGO
+========================= */
+
+.logo {
+    display: flex;
+
+    align-items: center;
+
+    gap: 0.65rem;
+
+    font-size: 1.25rem;
+
+    font-weight: 700;
+
+    letter-spacing: -0.02em;
+}
+
+
+.logoIcon {
+    display: grid;
+
+    place-items: center;
+
+    width: 34px;
+    height: 34px;
+
+    border-radius: 10px;
+
+    background: var(--color-primary);
+
+    font-size: 0.8rem;
+
+    box-shadow:
+        0 8px 25px rgba(124, 58, 237, 0.35);
+}
+
+
+/* =========================
+   NAVIGATION
+========================= */
+
+.navigation {
+    display: flex;
+
+    align-items: center;
+
+    gap: 2rem;
+
+    margin-left: auto;
+}
+
+
+.navigation a {
+    position: relative;
+
+    color: var(--color-text-secondary);
+
+    font-size: 0.9rem;
+
+    transition:
+        color var(--transition-normal);
+}
+
+
+.navigation a:hover {
+    color: var(--color-text);
+}
+
+
+.navigation a::after {
+    content: "";
+
+    position: absolute;
+
+    left: 0;
+    bottom: -6px;
+
+    width: 100%;
+    height: 2px;
+
+    background: var(--color-primary);
+
+    transform: scaleX(0);
+
+    transform-origin: center;
+
+    transition:
+        transform var(--transition-normal);
+}
+
+
+.navigation a:hover::after {
+    transform: scaleX(1);
+}
+
+
+/* =========================
+   ACTIONS
+========================= */
+
+.actions {
+    display: flex;
+
+    align-items: center;
+
+    gap: 0.75rem;
+}
+
+
+.loginButton {
+    border: 1px solid var(--color-border);
+
+    border-radius: var(--radius-md);
+
+    padding: 0.65rem 1.1rem;
+
+    background: rgba(255, 255, 255, 0.05);
+
+    color: var(--color-text);
+
+    backdrop-filter: blur(10px);
+
+    transition:
+        background var(--transition-normal),
+        transform var(--transition-normal);
+}
+
+
+.loginButton:hover {
+    background: rgba(255, 255, 255, 0.1);
+
+    transform: translateY(-2px);
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 768px) {
+
+    .header {
+        padding: 1rem 0;
+    }
+
+
+    .navigation {
+        display: none;
+    }
+
+
+    .logo {
+        font-size: 1.1rem;
+    }
+
+
+    .logoIcon {
+        width: 30px;
+        height: 30px;
+    }
+
+
+    .loginButton {
+        padding: 0.55rem 0.9rem;
+
+        font-size: 0.85rem;
+    }
+
+}

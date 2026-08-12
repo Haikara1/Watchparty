@@ -1,0 +1,145 @@
+:root {
+    /* =========================
+       CORES
+    ========================= */
+
+    --color-background: #08090d;
+    --color-background-secondary: #11131a;
+
+    --color-surface: #171922;
+    --color-surface-hover: #20232e;
+
+    --color-primary: #7c3aed;
+    --color-primary-hover: #8b5cf6;
+
+    --color-text: #ffffff;
+    --color-text-secondary: #a1a1aa;
+    --color-text-muted: #71717a;
+
+    --color-border: rgba(255, 255, 255, 0.08);
+
+
+    /* =========================
+       TIPOGRAFIA
+    ========================= */
+
+    --font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+
+    /* =========================
+       ESPAÇAMENTOS
+    ========================= */
+
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+    --space-3xl: 4rem;
+
+
+    /* =========================
+       BORDAS
+    ========================= */
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+
+
+    /* =========================
+       SOMBRAS
+    ========================= */
+
+    --shadow-sm:
+        0 4px 12px rgba(0, 0, 0, 0.25);
+
+    --shadow-md:
+        0 10px 30px rgba(0, 0, 0, 0.35);
+
+    --shadow-lg:
+        0 20px 60px rgba(0, 0, 0, 0.5);
+
+
+    /* =========================
+       TRANSIÇÕES
+    ========================= */
+
+    --transition-fast: 150ms ease;
+    --transition-normal: 250ms ease;
+    --transition-slow: 400ms ease;
+}
+
+
+/* =========================
+   RESET
+========================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+
+html {
+    scroll-behavior: smooth;
+}
+
+
+body {
+    min-width: 320px;
+    min-height: 100vh;
+
+    font-family: var(--font-family);
+
+    background: var(--color-background);
+    color: var(--color-text);
+
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+
+button {
+    cursor: pointer;
+}
+
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+
+img,
+video {
+    display: block;
+    max-width: 100%;
+}
+
+.container {
+    width: min(100% - 2rem, 1200px);
+    margin-inline: auto;
+}
+
+::selection {
+    background: var(--color-primary);
+    color: #fff;
+}
