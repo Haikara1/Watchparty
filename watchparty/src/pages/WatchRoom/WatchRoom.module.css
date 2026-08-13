@@ -1,32 +1,40 @@
-/* =========================
+/* ============================================================
    PÁGINA
-========================= */
+   ============================================================ */
 
 .page {
-    min-height: 100vh;
+
+    width: 100%;
+
+    height: 100vh;
+
+    min-height: 0;
 
     display: flex;
 
     flex-direction: column;
 
     background:
-        var(--color-background);
+        #0f172a;
 
-    color:
-        var(--color-text);
+    color: #ffffff;
+
+    overflow: hidden;
+
 }
 
 
-/* =========================
+/* ============================================================
    HEADER
-========================= */
+   ============================================================ */
 
 .header {
-    position: sticky;
 
-    top: 0;
+    width: 100%;
 
-    z-index: 10;
+    height: 64px;
+
+    min-height: 64px;
 
     display: flex;
 
@@ -34,278 +42,691 @@
 
     justify-content: space-between;
 
-    gap: 1rem;
-
-    min-height: 64px;
+    gap: 20px;
 
     padding:
-        0.75rem
-        1.25rem;
+        0 24px;
 
-    border-bottom:
-        1px solid var(--color-border);
+    box-sizing: border-box;
 
     background:
-        rgba(10, 10, 15, 0.85);
+        #111827;
 
-    backdrop-filter:
-        blur(16px);
+    border-bottom:
+        1px solid rgba(255, 255, 255, 0.08);
+
 }
 
 
+/* ============================================================
+   BRAND
+   ============================================================ */
+
 .brand {
+
     display: flex;
 
     align-items: center;
 
-    gap: 0.6rem;
+    gap: 10px;
 
-    flex-shrink: 0;
-
-    font-size: 1rem;
+    font-size: 18px;
 
     font-weight: 700;
+
+    white-space: nowrap;
+
 }
 
 
 .brandIcon {
-    display: grid;
 
-    place-items: center;
+    font-size: 22px;
 
-    width: 34px;
-
-    height: 34px;
-
-    border-radius: 10px;
-
-    background:
-        var(--color-primary);
-
-    font-size: 1rem;
 }
 
 
+/* ============================================================
+   INFORMAÇÕES DA SALA
+   ============================================================ */
+
 .roomInfo {
+
     display: flex;
 
     align-items: center;
 
     justify-content: center;
 
-    gap: 1rem;
+    gap: 18px;
 
     min-width: 0;
+
 }
 
 
 .roomName {
+
+    max-width: 300px;
+
     overflow: hidden;
-
-    max-width: 350px;
-
-    color:
-        var(--color-text);
-
-    font-size: 0.9rem;
-
-    font-weight: 600;
 
     text-overflow: ellipsis;
 
     white-space: nowrap;
+
+    font-size: 14px;
+
+    font-weight: 600;
+
 }
 
 
 .roomMembers {
-    flex-shrink: 0;
 
-    padding:
-        0.35rem
-        0.65rem;
-
-    border:
-        1px solid var(--color-border);
-
-    border-radius:
-        999px;
+    font-size: 13px;
 
     color:
-        var(--color-text-secondary);
+        rgba(255, 255, 255, 0.65);
 
-    font-size: 0.75rem;
+    white-space: nowrap;
+
 }
 
 
+/* ============================================================
+   BOTÃO DO HEADER
+   ============================================================ */
+
 .headerButton {
-    display: grid;
 
-    place-items: center;
+    width: 40px;
 
-    width: 38px;
+    height: 40px;
 
-    height: 38px;
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
 
     flex-shrink: 0;
 
-    border:
-        1px solid var(--color-border);
+    border: 0;
 
-    border-radius:
-        var(--radius-md);
+    border-radius: 10px;
 
     background:
-        rgba(255, 255, 255, 0.03);
+        rgba(255, 255, 255, 0.06);
 
-    color:
-        var(--color-text);
+    color: #ffffff;
+
+    font-size: 18px;
 
     cursor: pointer;
 
     transition:
-        background var(--transition-normal),
-        transform var(--transition-normal);
+        background 0.2s ease,
+        transform 0.2s ease;
+
 }
 
 
 .headerButton:hover {
+
     background:
-        rgba(255, 255, 255, 0.08);
+        rgba(255, 255, 255, 0.12);
 
     transform:
         translateY(-1px);
+
 }
 
 
-/* =========================
+/* ============================================================
    WORKSPACE
-========================= */
+   ============================================================ */
 
 .workspace {
+
+    flex: 1;
+
+    min-height: 0;
+
+    height: calc(100vh - 64px);
+
     display: grid;
 
     grid-template-columns:
         minmax(0, 1fr)
         340px;
 
-    flex: 1;
+    overflow: hidden;
 
-    min-height: 0;
 }
 
 
-/* =========================
+/* ============================================================
    PLAYER
-========================= */
+   ============================================================ */
 
 .playerSection {
-    display: flex;
 
-    flex-direction: column;
-
-    min-width: 0;
-
-    padding: 1rem;
-}
-
-
-
-
-.playerContent h1 {
-    margin: 0 0 0.5rem;
-
-    font-size: 1.25rem;
-}
-
-
-.playerContent p {
-    margin: 0;
-
-    color:
-        var(--color-text-secondary);
-
-    font-size: 0.85rem;
-}
-
-
-/* =========================
-   CONTROLES DO PLAYER
-========================= */
-
-
-/* =========================
-   CHAT
-========================= */
-
-.chat {
-    display: flex;
-
-    flex-direction: column;
+    position: relative;
 
     min-width: 0;
 
     min-height: 0;
 
-    border-left:
-        1px solid var(--color-border);
-
-    background:
-        rgba(255, 255, 255, 0.015);
-}
-
-
-.chatHeader {
     display: flex;
 
     align-items: center;
 
-    min-height: 64px;
+    justify-content: center;
 
-    padding:
-        0.75rem
-        1rem;
+    background:
+        #020617;
 
-    border-bottom:
-        1px solid var(--color-border);
+    overflow: hidden;
+
 }
 
 
-.chatHeader > div {
+/* ============================================================
+   DEBUG PLAYBACK
+   ============================================================ */
+
+.playbackDebug {
+
+    position: absolute;
+
+    left: 12px;
+
+    top: 12px;
+
+    z-index: 20;
+
+    padding:
+        6px 10px;
+
+    border-radius: 8px;
+
+    background:
+        rgba(0, 0, 0, 0.7);
+
+    color: #ffffff;
+
+    font-size: 11px;
+
+    pointer-events: none;
+
+}
+
+
+/* ============================================================
+   CHAT
+   ============================================================ */
+
+.chat {
+
+    min-width: 0;
+
+    min-height: 0;
+
+    height: 100%;
+
     display: flex;
 
     flex-direction: column;
 
-    gap: 0.2rem;
+    background:
+        #111827;
+
+    border-left:
+        1px solid rgba(255, 255, 255, 0.08);
+
+    overflow: hidden;
+
 }
 
 
-.chatHeader strong {
-    font-size: 0.9rem;
+/* ============================================================
+   HEADER DO CHAT
+   ============================================================ */
+
+.chatHeader {
+
+    flex-shrink: 0;
+
+    width: 100%;
+
+    min-height: 70px;
+
+    display: flex;
+
+    align-items: center;
+
+    padding:
+        14px 16px;
+
+    box-sizing: border-box;
+
+    border-bottom:
+        1px solid rgba(255, 255, 255, 0.08);
+
+    background:
+        #111827;
+
 }
 
 
-.chatHeader span {
+/* ============================================================
+   INFORMAÇÕES DO CHAT
+   ============================================================ */
+
+.chatHeaderInfo {
+
+    width: 100%;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 20px;
+
+}
+
+
+.chatHeaderInfo strong {
+
+    font-size: 15px;
+
+    font-weight: 700;
+
     color:
-        var(--color-text-secondary);
+        #ffffff;
 
-    font-size: 0.7rem;
 }
 
+
+/* ============================================================
+   BOTÃO DE PARTICIPANTES
+   ============================================================ */
+
+.chatParticipantsButton {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 8px;
+
+    padding:
+        7px 10px;
+
+    border: 0;
+
+    border-radius: 8px;
+
+    background:
+        rgba(255, 255, 255, 0.04);
+
+    color:
+        rgba(255, 255, 255, 0.55);
+
+    font-family: inherit;
+
+    font-size: 11px;
+
+    cursor: pointer;
+
+    user-select: none;
+
+    transition:
+        background 0.2s ease,
+        color 0.2s ease;
+
+}
+
+
+.chatParticipantsButton:hover {
+
+    background:
+        rgba(255, 255, 255, 0.08);
+
+    color:
+        rgba(255, 255, 255, 0.9);
+
+}
+
+
+/* ============================================================
+   SETA DO CABEÇALHO
+   ============================================================ */
+
+.chatHeaderArrow {
+
+    font-size: 14px;
+
+    line-height: 1;
+
+    transition:
+        transform 0.2s ease;
+
+}
+
+
+.chatParticipantsButton:hover
+.chatHeaderArrow {
+
+    transform:
+        translateX(2px);
+
+}
+
+
+/* ============================================================
+   CABEÇALHO DE PARTICIPANTES
+   ============================================================ */
+
+.participantsHeader {
+
+    width: 100%;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+}
+
+
+/* ============================================================
+   BOTÃO VOLTAR
+   ============================================================ */
+
+.participantsBackButton {
+
+    width: 34px;
+
+    height: 34px;
+
+    flex-shrink: 0;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border: 0;
+
+    border-radius: 8px;
+
+    background:
+        rgba(255, 255, 255, 0.05);
+
+    color:
+        #ffffff;
+
+    font-family: inherit;
+
+    font-size: 18px;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+
+}
+
+
+.participantsBackButton:hover {
+
+    background:
+        rgba(255, 255, 255, 0.1);
+
+    transform:
+        translateX(-2px);
+
+}
+
+
+/* ============================================================
+   TÍTULO DOS PARTICIPANTES
+   ============================================================ */
+
+.participantsTitle {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 3px;
+
+}
+
+
+.participantsTitle strong {
+
+    font-size: 15px;
+
+    font-weight: 700;
+
+    color:
+        #ffffff;
+
+}
+
+
+.participantsTitle span {
+
+    font-size: 11px;
+
+    color:
+        rgba(255, 255, 255, 0.5);
+
+}
+
+
+/* ============================================================
+   ÁREA DAS MENSAGENS
+   ============================================================ */
 
 .chatMessages {
-    display: flex;
 
     flex: 1;
 
-    min-height: 300px;
+    min-height: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 10px;
 
     overflow-y: auto;
 
-    padding: 1rem;
+    overflow-x: hidden;
+
+    padding:
+        16px;
+
+    box-sizing: border-box;
+
 }
 
 
+/* ============================================================
+   SCROLLBAR DO CHAT
+   ============================================================ */
+
+.chatMessages::-webkit-scrollbar {
+
+    width: 6px;
+
+}
+
+
+.chatMessages::-webkit-scrollbar-track {
+
+    background:
+        transparent;
+
+}
+
+
+.chatMessages::-webkit-scrollbar-thumb {
+
+    background:
+        rgba(255, 255, 255, 0.15);
+
+    border-radius: 10px;
+
+}
+
+
+.chatMessages::-webkit-scrollbar-thumb:hover {
+
+    background:
+        rgba(255, 255, 255, 0.25);
+
+}
+
+
+/* ============================================================
+   MENSAGEM
+   ============================================================ */
+
+.chatMessage {
+
+    width: 100%;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 5px;
+
+    padding:
+        10px 12px;
+
+    box-sizing: border-box;
+
+    border-radius: 10px;
+
+    background:
+        rgba(255, 255, 255, 0.05);
+
+    border:
+        1px solid rgba(255, 255, 255, 0.04);
+
+    flex-shrink: 0;
+
+}
+
+
+/* ============================================================
+   MENSAGEM DO PRÓPRIO USUÁRIO
+   ============================================================ */
+
+.chatMessageOwn {
+
+    background:
+        rgba(59, 130, 246, 0.16);
+
+    border-color:
+        rgba(59, 130, 246, 0.2);
+
+}
+
+
+/* ============================================================
+   CABEÇALHO DA MENSAGEM
+   ============================================================ */
+
+.chatMessageHeader {
+
+    width: 100%;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 10px;
+
+}
+
+
+.chatMessageHeader strong {
+
+    min-width: 0;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+    font-size: 12px;
+
+    font-weight: 700;
+
+}
+
+
+.chatMessageHeader span {
+
+    flex-shrink: 0;
+
+    font-size: 10px;
+
+    color:
+        rgba(255, 255, 255, 0.45);
+
+}
+
+
+/* ============================================================
+   TEXTO DA MENSAGEM
+   ============================================================ */
+
+.chatMessageText {
+
+    margin: 0;
+
+    font-size: 14px;
+
+    line-height: 1.45;
+
+    color:
+        rgba(255, 255, 255, 0.9);
+
+    white-space: pre-wrap;
+
+    word-break: break-word;
+
+    overflow-wrap: anywhere;
+
+}
+
+
+/* ============================================================
+   CHAT VAZIO
+   ============================================================ */
+
 .emptyChat {
+
+    flex: 1;
+
     display: flex;
 
     flex-direction: column;
@@ -314,100 +735,133 @@
 
     justify-content: center;
 
-    width: 100%;
+    gap: 8px;
+
+    min-height: 200px;
 
     text-align: center;
+
+    color:
+        rgba(255, 255, 255, 0.5);
+
 }
 
 
 .emptyChat span {
-    margin-bottom: 0.75rem;
 
-    font-size: 2rem;
+    font-size: 32px;
 
     opacity: 0.7;
+
 }
 
 
 .emptyChat p {
-    margin: 0 0 0.3rem;
 
-    color:
-        var(--color-text);
+    margin: 0;
 
-    font-size: 0.85rem;
+    font-size: 14px;
+
 }
 
 
 .emptyChat small {
-    color:
-        var(--color-text-secondary);
 
-    font-size: 0.7rem;
+    font-size: 12px;
+
+    opacity: 0.7;
+
 }
 
 
-/* =========================
-   CHAT FORM
-========================= */
+/* ============================================================
+   FORMULÁRIO DO CHAT
+   ============================================================ */
 
 .chatForm {
+
+    flex-shrink: 0;
+
     display: flex;
 
-    gap: 0.5rem;
+    align-items: center;
 
-    padding: 0.75rem;
+    gap: 8px;
+
+    padding:
+        12px;
 
     border-top:
-        1px solid var(--color-border);
+        1px solid rgba(255, 255, 255, 0.08);
+
+    background:
+        #111827;
+
 }
 
 
+/* ============================================================
+   INPUT
+   ============================================================ */
+
 .chatForm input {
-    width: 100%;
+
+    flex: 1;
 
     min-width: 0;
 
-    min-height: 42px;
+    height: 42px;
 
     padding:
-        0.6rem
-        0.75rem;
+        0 12px;
+
+    box-sizing: border-box;
 
     border:
-        1px solid var(--color-border);
+        1px solid rgba(255, 255, 255, 0.08);
 
-    border-radius:
-        var(--radius-md);
+    border-radius: 10px;
 
     outline: none;
 
     background:
-        rgba(255, 255, 255, 0.03);
+        rgba(255, 255, 255, 0.05);
 
-    color:
-        var(--color-text);
+    color: #ffffff;
 
-    font-size: 0.8rem;
+    font-size: 13px;
+
+    transition:
+        border-color 0.2s ease,
+        background 0.2s ease;
+
 }
 
 
 .chatForm input::placeholder {
+
     color:
-        var(--color-text-secondary);
+        rgba(255, 255, 255, 0.35);
+
 }
 
 
 .chatForm input:focus {
+
     border-color:
-        var(--color-primary);
+        rgba(59, 130, 246, 0.6);
+
+    background:
+        rgba(255, 255, 255, 0.07);
+
 }
 
 
-.chatForm button {
-    display: grid;
+/* ============================================================
+   BOTÃO ENVIAR
+   ============================================================ */
 
-    place-items: center;
+.chatForm button {
 
     width: 42px;
 
@@ -415,25 +869,270 @@
 
     flex-shrink: 0;
 
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
     border: 0;
 
-    border-radius:
-        var(--radius-md);
+    border-radius: 10px;
 
     background:
-        var(--color-primary);
+        #2563eb;
 
-    color: white;
+    color: #ffffff;
+
+    font-size: 17px;
 
     cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
+
 }
 
 
-/* =========================
-   LOADING
-========================= */
+.chatForm button:hover:not(:disabled) {
 
-.loading {
+    background:
+        #1d4ed8;
+
+    transform:
+        translateY(-1px);
+
+}
+
+
+.chatForm button:disabled {
+
+    opacity: 0.35;
+
+    cursor: not-allowed;
+
+}
+
+
+/* ============================================================
+   LISTA DE PARTICIPANTES
+   ============================================================ */
+
+.participantsList {
+
+    flex: 1;
+
+    min-height: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 8px;
+
+    padding:
+        14px 16px;
+
+    overflow-y: auto;
+
+    box-sizing: border-box;
+
+}
+
+
+.participantsList::-webkit-scrollbar {
+
+    width: 6px;
+
+}
+
+
+.participantsList::-webkit-scrollbar-track {
+
+    background:
+        transparent;
+
+}
+
+
+.participantsList::-webkit-scrollbar-thumb {
+
+    background:
+        rgba(255, 255, 255, 0.15);
+
+    border-radius: 10px;
+
+}
+
+
+.participantsList::-webkit-scrollbar-thumb:hover {
+
+    background:
+        rgba(255, 255, 255, 0.25);
+
+}
+
+
+/* ============================================================
+   PARTICIPANTE
+   ============================================================ */
+
+.participantItem {
+
+    width: 100%;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    padding:
+        10px;
+
+    box-sizing: border-box;
+
+    border-radius: 10px;
+
+    background:
+        rgba(255, 255, 255, 0.04);
+
+    border:
+        1px solid rgba(255, 255, 255, 0.04);
+
+    transition:
+        background 0.2s ease;
+
+}
+
+
+.participantItem:hover {
+
+    background:
+        rgba(255, 255, 255, 0.07);
+
+}
+
+
+/* ============================================================
+   AVATAR
+   ============================================================ */
+
+.participantAvatar {
+
+    width: 36px;
+
+    height: 36px;
+
+    flex-shrink: 0;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background:
+        rgba(37, 99, 235, 0.25);
+
+    border:
+        1px solid rgba(59, 130, 246, 0.25);
+
+    color:
+        #ffffff;
+
+    font-size: 14px;
+
+    font-weight: 700;
+
+}
+
+
+/* ============================================================
+   INFORMAÇÕES DO PARTICIPANTE
+   ============================================================ */
+
+.participantInfo {
+
+    min-width: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 3px;
+
+}
+
+
+.participantInfo strong {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    min-width: 0;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+    color:
+        #ffffff;
+
+}
+
+
+.participantInfo > span {
+
+    font-size: 10px;
+
+    color:
+        #4ade80;
+
+}
+
+
+/* ============================================================
+   ETIQUETA "VOCÊ"
+   ============================================================ */
+
+.youLabel {
+
+    padding:
+        2px 6px;
+
+    border-radius: 5px;
+
+    background:
+        rgba(59, 130, 246, 0.15);
+
+    color:
+        #60a5fa;
+
+    font-size: 9px;
+
+    font-weight: 600;
+
+}
+
+
+/* ============================================================
+   PARTICIPANTES VAZIO
+   ============================================================ */
+
+.emptyParticipants {
+
+    flex: 1;
+
+    min-height: 200px;
+
     display: flex;
 
     flex-direction: column;
@@ -442,43 +1141,87 @@
 
     justify-content: center;
 
-    min-height: 100vh;
+    gap: 8px;
 
-    gap: 1rem;
+    text-align: center;
+
+    color:
+        rgba(255, 255, 255, 0.5);
+
+}
+
+
+.emptyParticipants span {
+
+    font-size: 30px;
+
+    opacity: 0.7;
+
+}
+
+
+.emptyParticipants p {
+
+    margin: 0;
+
+    font-size: 13px;
+
+}
+
+
+/* ============================================================
+   LOADING
+   ============================================================ */
+
+.loading {
+
+    width: 100%;
+
+    height: 100vh;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 12px;
+
 }
 
 
 .spinner {
-    display: block;
 
-    font-size: 2.5rem;
-
-    color:
-        var(--color-primary);
+    font-size: 32px;
 
     animation:
         spin 1s linear infinite;
-}
-
-
-@keyframes spin {
-
-    from {
-        transform: rotate(0deg);
-    }
-
-    to {
-        transform: rotate(360deg);
-    }
 
 }
 
 
-/* =========================
-   NOT FOUND
-========================= */
+.loading p {
+
+    margin: 0;
+
+    color:
+        rgba(255, 255, 255, 0.65);
+
+}
+
+
+/* ============================================================
+   SALA NÃO ENCONTRADA
+   ============================================================ */
 
 .notFound {
+
+    width: 100%;
+
+    height: 100vh;
+
     display: flex;
 
     flex-direction: column;
@@ -487,240 +1230,380 @@
 
     justify-content: center;
 
-    min-height: 100vh;
+    gap: 12px;
 
-    padding: 2rem;
+    padding: 24px;
+
+    box-sizing: border-box;
 
     text-align: center;
+
 }
 
 
 .notFoundIcon {
-    margin-bottom: 1rem;
 
-    font-size: 3rem;
+    font-size: 48px;
+
 }
 
 
 .notFound h1 {
-    margin-bottom: 0.75rem;
+
+    margin: 0;
+
+    font-size: 28px;
+
 }
 
 
 .notFound p {
-    max-width: 500px;
 
-    margin-bottom: 1.5rem;
+    max-width: 450px;
+
+    margin: 0 0 10px;
 
     color:
-        var(--color-text-secondary);
+        rgba(255, 255, 255, 0.6);
 
-    line-height: 1.6;
+    line-height: 1.5;
+
 }
 
 
 .primaryButton {
-    min-height: 46px;
-
-    padding:
-        0.7rem
-        1.4rem;
 
     border: 0;
 
-    border-radius:
-        var(--radius-md);
+    border-radius: 10px;
+
+    padding:
+        11px 18px;
 
     background:
-        var(--color-primary);
+        #2563eb;
 
-    color: white;
+    color: #ffffff;
+
+    font-size: 14px;
 
     font-weight: 600;
 
     cursor: pointer;
 
     transition:
-        transform var(--transition-normal),
-        opacity var(--transition-normal);
+        background 0.2s ease,
+        transform 0.2s ease;
+
 }
 
 
 .primaryButton:hover {
-    transform:
-        translateY(-2px);
 
-    opacity: 0.9;
+    background:
+        #1d4ed8;
+
+    transform:
+        translateY(-1px);
+
 }
 
 
-/* =========================
-   RESPONSIVIDADE
-========================= */
+/* ============================================================
+   ANIMAÇÃO
+   ============================================================ */
+
+@keyframes spin {
+
+    from {
+
+        transform:
+            rotate(0deg);
+
+    }
+
+    to {
+
+        transform:
+            rotate(360deg);
+
+    }
+
+}
+
+
+/* ============================================================
+   TABLET
+   ============================================================ */
 
 @media (max-width: 900px) {
 
     .workspace {
-        grid-template-columns: 1fr;
+
+        grid-template-columns:
+            minmax(0, 1fr)
+            300px;
+
     }
 
-
-    .chat {
-        min-height: 400px;
-
-        border-top:
-            1px solid var(--color-border);
-
-        border-left: 0;
-    }
-
-}
-
-
-@media (max-width: 600px) {
 
     .header {
+
         padding:
-            0.65rem
-            0.75rem;
-    }
+            0 16px;
 
-
-    .roomInfo {
-        gap: 0.5rem;
     }
 
 
     .roomName {
-        max-width: 150px;
+
+        max-width: 200px;
+
+    }
+
+}
+
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 700px) {
+
+    .page {
+
+        height: 100vh;
+
+        min-height: 100vh;
+
+        overflow: hidden;
+
+    }
+
+
+    .header {
+
+        height: 58px;
+
+        min-height: 58px;
+
+        gap: 10px;
+
+    }
+
+
+    .brand {
+
+        font-size: 16px;
+
+    }
+
+
+    .brandIcon {
+
+        font-size: 19px;
+
+    }
+
+
+    .roomInfo {
+
+        gap: 8px;
+
+    }
+
+
+    .roomName {
+
+        max-width: 120px;
+
+        font-size: 12px;
+
+    }
+
+
+    .roomMembers {
+
+        display: none;
+
+    }
+
+
+    .headerButton {
+
+        width: 36px;
+
+        height: 36px;
+
+    }
+
+
+    .workspace {
+
+        width: 100%;
+
+        height: calc(100vh - 58px);
+
+        min-height: 0;
+
+        display: flex;
+
+        flex-direction: column;
+
+        overflow: hidden;
+
     }
 
 
     .playerSection {
-        padding: 0.5rem;
-    }
 
+        width: 100%;
 
-    .player {
-        min-height: 220px;
-    }
+        height: auto;
 
+        aspect-ratio: 16 / 9;
 
-    .playerControls {
-        gap: 0.4rem;
-    }
+        min-height: 0;
 
+        flex-shrink: 0;
 
-    .time {
-        display: none;
     }
 
 
     .chat {
-        min-height: 360px;
-    }
 
-}
+        width: 100%;
 
-/* =====================================================
-   WATCH ROOM - TELA FIXA
-===================================================== */
+        height: auto;
 
-.page {
-    width: 100%;
-
-    height: 100dvh;
-
-    min-height: 100dvh;
-
-    overflow: hidden;
-
-    display: flex;
-
-    flex-direction: column;
-}
-
-
-/* =====================================================
-   ÁREA DE TRABALHO
-===================================================== */
-
-.workspace {
-    flex: 1;
-
-    min-height: 0;
-
-    height: 100%;
-
-    overflow: hidden;
-
-    display: grid;
-}
-
-
-/* =====================================================
-   PLAYER
-===================================================== */
-
-.playerSection {
-    min-width: 0;
-
-    min-height: 0;
-
-    height: 100%;
-
-    overflow: hidden;
-}
-
-
-/* =====================================================
-   CHAT
-===================================================== */
-
-.chat {
-    min-height: 0;
-
-    height: 100%;
-
-    overflow: hidden;
-
-    display: flex;
-
-    flex-direction: column;
-}
-
-
-/* =====================================================
-   MENSAGENS DO CHAT
-===================================================== */
-
-.chatMessages {
-    flex: 1;
-
-    min-height: 0;
-
-    overflow-y: auto;
-}
-
-
-/* =====================================================
-   MOBILE
-===================================================== */
-
-@media (max-width: 768px) {
-
-    .page {
-        height: 100dvh;
-
-        min-height: 100dvh;
-
-        overflow: hidden;
-    }
-
-    .workspace {
         min-height: 0;
 
+        flex: 1;
+
+        border-left: 0;
+
+        border-top:
+            1px solid rgba(255, 255, 255, 0.08);
+
         overflow: hidden;
+
+    }
+
+
+    .chatHeader {
+
+        min-height: 64px;
+
+        padding:
+            12px;
+
+    }
+
+
+    .chatMessages {
+
+        flex: 1;
+
+        min-height: 0;
+
+        max-height: none;
+
+        overflow-y: auto;
+
+        overflow-x: hidden;
+
+        padding:
+            12px;
+
+    }
+
+
+    .participantsList {
+
+        padding:
+            12px;
+
+    }
+
+
+    .playbackDebug {
+
+        left: 8px;
+
+        top: 8px;
+
+        font-size: 10px;
+
+    }
+
+}
+
+
+/* ============================================================
+   MOBILE PEQUENO
+   ============================================================ */
+
+@media (max-width: 420px) {
+
+    .header {
+
+        padding:
+            0 10px;
+
+    }
+
+
+    .roomName {
+
+        max-width: 100px;
+
+    }
+
+
+    .chatHeader {
+
+        padding:
+            10px;
+
+    }
+
+
+    .chatMessages {
+
+        padding:
+            12px;
+
+    }
+
+
+    .participantsList {
+
+        padding:
+            10px 12px;
+
+    }
+
+
+    .chatForm {
+
+        padding:
+            10px;
+
+    }
+
+
+    .chatMessage {
+
+        padding:
+            9px 10px;
+
+    }
+
+
+    .chatMessageText {
+
+        font-size: 13px;
+
     }
 
 }

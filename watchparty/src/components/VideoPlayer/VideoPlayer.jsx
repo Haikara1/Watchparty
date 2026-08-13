@@ -3,7 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import styles from "./VideoPlayer.module.css";
 
 
-function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
+function VideoPlayer({
+    src,
+    playback,
+    onPlay,
+    onPause,
+    onSeek
+}) {
 
     const playerRef = useRef(null);
 
@@ -13,39 +19,79 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 
     const playbackAppliedRef = useRef(false);
 
+    /*
+    ============================================================
+    CONTROLE DE EVENTOS REMOTOS
+    ============================================================
+    */
 
-    // =========================
-    // PLAYER STATE
-    // =========================
-
-    const [isPlaying, setIsPlaying] = useState(false);
-
-    const [currentTime, setCurrentTime] = useState(0);
-
-    const [duration, setDuration] = useState(0);
-
-    const [volume, setVolume] = useState(1);
-
-    const [isMuted, setIsMuted] = useState(false);
-
-    const [isFullscreen, setIsFullscreen] = useState(false);
-
-    const [hasError, setHasError] = useState(false);
-
-    const [showControls, setShowControls] = useState(true);
+    const remoteActionRef = useRef(null);
 
 
-    // =========================
-    // DETECTAR MOBILE / TOUCH
-    // =========================
+    /*
+    ============================================================
+    PLAYER STATE
+    ============================================================
+    */
 
-    const [isTouchDevice, setIsTouchDevice] = useState(false);
+    const [isPlaying, setIsPlaying] =
+        useState(false);
+
+
+    const [currentTime, setCurrentTime] =
+        useState(0);
+
+
+    const [duration, setDuration] =
+        useState(0);
+
+
+    const [volume, setVolume] =
+        useState(1);
+
+
+    const [isMuted, setIsMuted] =
+        useState(false);
+
+
+    const [isFullscreen, setIsFullscreen] =
+        useState(false);
+
+
+    const [hasError, setHasError] =
+        useState(false);
+
+
+    const [showControls, setShowControls] =
+        useState(true);
+
+
+    /*
+    ============================================================
+    AUTOPLAY BLOQUEADO
+    ============================================================
+    */
+
+    const [autoplayBlocked, setAutoplayBlocked] =
+        useState(false);
+
+
+    /*
+    ============================================================
+    DETECTAR MOBILE / TOUCH
+    ============================================================
+    */
+
+    const [isTouchDevice, setIsTouchDevice] =
+        useState(false);
 
 
     useEffect(() => {
 
         const mediaQuery =
-            window.matchMedia("(pointer: coarse)");
+            window.matchMedia(
+                "(pointer: coarse)"
+            );
 
 
         function updateTouchDevice() {
@@ -78,9 +124,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }, []);
 
 
-    // =========================
-    // LIMPAR TIMER
-    // =========================
+    /*
+    ============================================================
+    LIMPAR TIMER
+    ============================================================
+    */
 
     function clearControlsTimeout() {
 
@@ -92,16 +140,20 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                 controlsTimeoutRef.current
             );
 
-            controlsTimeoutRef.current = null;
+
+            controlsTimeoutRef.current =
+                null;
 
         }
 
     }
 
 
-    // =========================
-    // ESCONDER CONTROLES
-    // =========================
+    /*
+    ============================================================
+    ESCONDER CONTROLES
+    ============================================================
+    */
 
     function scheduleControlsHide() {
 
@@ -132,9 +184,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // MOSTRAR CONTROLES
-    // =========================
+    /*
+    ============================================================
+    MOSTRAR CONTROLES
+    ============================================================
+    */
 
     function showPlayerControls() {
 
@@ -145,9 +199,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // INTERAÇÃO DO PLAYER
-    // =========================
+    /*
+    ============================================================
+    INTERAÇÃO DO PLAYER
+    ============================================================
+    */
 
     function handlePlayerInteraction() {
 
@@ -158,9 +214,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // PLAY
-    // =========================
+    /*
+    ============================================================
+    PLAY
+    ============================================================
+    */
 
     function handlePlay() {
 
@@ -177,10 +235,15 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 
         video
             .play()
+            .then(() => {
+
+                setAutoplayBlocked(false);
+
+            })
             .catch((error) => {
 
                 console.error(
-                    "Não foi possível reproduzir o vídeo:",
+                    "[VideoPlayer] Não foi possível reproduzir:",
                     error
                 );
 
@@ -189,9 +252,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // PAUSE
-    // =========================
+    /*
+    ============================================================
+    PAUSE
+    ============================================================
+    */
 
     function handlePause() {
 
@@ -211,9 +276,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // PLAY / PAUSE
-    // =========================
+    /*
+    ============================================================
+    PLAY / PAUSE
+    ============================================================
+    */
 
     function handleTogglePlay() {
 
@@ -226,6 +293,15 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
             return;
 
         }
+
+
+        /*
+        ========================================================
+        ESTA INTERAÇÃO LIBERA O AUTOPLAY
+        ========================================================
+        */
+
+        setAutoplayBlocked(false);
 
 
         if (video.paused) {
@@ -244,9 +320,107 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // PLAY EVENT
-    // =========================
+    /*
+    ============================================================
+    BOTÃO DE SINCRONIZAÇÃO
+    ============================================================
+    */
+
+    function handleAutoplaySync() {
+
+        const video =
+            videoRef.current;
+
+
+        if (!video) {
+
+            return;
+
+        }
+
+
+        /*
+        ========================================================
+        MARCAR COMO PLAY REMOTO
+        ========================================================
+        */
+
+        remoteActionRef.current =
+            "play";
+
+
+        /*
+        ========================================================
+        APLICAR TEMPO RECEBIDO
+        ========================================================
+        */
+
+        const remoteTime =
+            Number(
+                playback?.currentTime
+            );
+
+
+        if (
+            Number.isFinite(remoteTime) &&
+            remoteTime >= 0
+        ) {
+
+            video.currentTime =
+                remoteTime;
+
+
+            setCurrentTime(
+                remoteTime
+            );
+
+        }
+
+
+        /*
+        ========================================================
+        TENTAR REPRODUZIR
+        ========================================================
+        */
+
+        video
+            .play()
+            .then(() => {
+
+                console.log(
+                    "[VideoPlayer] Autoplay liberado pelo usuário."
+                );
+
+
+                setAutoplayBlocked(
+                    false
+                );
+
+            })
+            .catch((error) => {
+
+                console.error(
+                    "[VideoPlayer] Não foi possível sincronizar:",
+                    error
+                );
+
+
+                remoteActionRef.current =
+                    null;
+
+            });
+
+
+        setShowControls(true);
+
+    }
+
+
+    /*
+    ============================================================
+    EVENTO PLAY DO VÍDEO
+    ============================================================
+    */
 
     function handleVideoPlay() {
 
@@ -254,29 +428,88 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
             videoRef.current;
 
 
+        if (!video) {
+
+            return;
+
+        }
+
+
         setIsPlaying(true);
 
         setShowControls(true);
 
+        setAutoplayBlocked(false);
 
-        if (onPlay && video) {
+
+        /*
+        ========================================================
+        PLAY REMOTO
+        ========================================================
+        */
+
+        if (
+            remoteActionRef.current ===
+            "play"
+        ) {
+
+            console.log(
+                "[VideoPlayer] ▶ PLAY remoto aplicado."
+            );
+
+
+            remoteActionRef.current =
+                null;
+
+
+            return;
+
+        }
+
+
+        /*
+        ========================================================
+        PLAY LOCAL
+        ========================================================
+        */
+
+        console.log(
+            "[VideoPlayer] ▶ PLAY local:",
+            video.currentTime
+        );
+
+
+        if (onPlay) {
 
             onPlay({
-                currentTime: video.currentTime
+
+                currentTime:
+                    video.currentTime
+
             });
 
         }
 
     }
 
-    // =========================
-    // PAUSE EVENT
-    // =========================
+
+    /*
+    ============================================================
+    EVENTO PAUSE DO VÍDEO
+    ============================================================
+    */
 
     function handleVideoPause() {
 
         const video =
             videoRef.current;
+
+
+        if (!video) {
+
+            return;
+
+        }
 
 
         setIsPlaying(false);
@@ -286,10 +519,50 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
         clearControlsTimeout();
 
 
-        if (onPause && video) {
+        /*
+        ========================================================
+        PAUSE REMOTO
+        ========================================================
+        */
+
+        if (
+            remoteActionRef.current ===
+            "pause"
+        ) {
+
+            console.log(
+                "[VideoPlayer] ⏸ PAUSE remoto aplicado."
+            );
+
+
+            remoteActionRef.current =
+                null;
+
+
+            return;
+
+        }
+
+
+        /*
+        ========================================================
+        PAUSE LOCAL
+        ========================================================
+        */
+
+        console.log(
+            "[VideoPlayer] ⏸ PAUSE local:",
+            video.currentTime
+        );
+
+
+        if (onPause) {
 
             onPause({
-                currentTime: video.currentTime
+
+                currentTime:
+                    video.currentTime
+
             });
 
         }
@@ -297,9 +570,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // TIME UPDATE
-    // =========================
+    /*
+    ============================================================
+    TIME UPDATE
+    ============================================================
+    */
 
     function handleTimeUpdate() {
 
@@ -321,9 +596,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // METADATA
-    // =========================
+    /*
+    ============================================================
+    METADATA
+    ============================================================
+    */
 
     function handleLoadedMetadata() {
 
@@ -353,9 +630,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
         );
 
 
-        // =========================
-        // APLICAR PLAYBACK SALVO
-        // =========================
+        /*
+        ========================================================
+        PLAYBACK INICIAL
+        ========================================================
+        */
 
         if (
             playbackAppliedRef.current
@@ -387,6 +666,7 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
             video.currentTime =
                 savedTime;
 
+
             setCurrentTime(
                 savedTime
             );
@@ -398,19 +678,41 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
             true;
 
 
-        // =========================
-        // RESTAURAR PLAY / PAUSE
-        // =========================
+        /*
+        ========================================================
+        RESTAURAR PLAYBACK
+        ========================================================
+        */
 
         if (savedIsPlaying) {
 
+            remoteActionRef.current =
+                "play";
+
+
             video
                 .play()
+                .then(() => {
+
+                    setAutoplayBlocked(
+                        false
+                    );
+
+                })
                 .catch((error) => {
 
                     console.warn(
-                        "Autoplay bloqueado pelo navegador:",
+                        "[VideoPlayer] Autoplay inicial bloqueado:",
                         error
+                    );
+
+
+                    remoteActionRef.current =
+                        null;
+
+
+                    setAutoplayBlocked(
+                        true
                     );
 
                 });
@@ -419,16 +721,216 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 
     }
 
+
+    /*
+    ============================================================
+    RESETAR PLAYBACK AO TROCAR SRC
+    ============================================================
+    */
+
     useEffect(() => {
 
-        playbackAppliedRef.current = false;
+        playbackAppliedRef.current =
+            false;
+
+
+        remoteActionRef.current =
+            null;
+
+
+        setHasError(false);
+
+        setAutoplayBlocked(false);
 
     }, [src]);
 
 
-    // =========================
-    // SEEK
-    // =========================
+    /*
+    ============================================================
+    ⭐ SINCRONIZAÇÃO REALTIME
+    ============================================================
+    */
+
+    useEffect(() => {
+
+        const video =
+            videoRef.current;
+
+
+        if (!video) {
+
+            return;
+
+        }
+
+
+        if (!playback) {
+
+            return;
+
+        }
+
+
+        const remoteTime =
+            Number(
+                playback.currentTime
+            );
+
+
+        /*
+        ========================================================
+        SINCRONIZAR TEMPO
+        ========================================================
+        */
+
+        if (
+            Number.isFinite(remoteTime) &&
+            remoteTime >= 0
+        ) {
+
+            const difference =
+                Math.abs(
+                    video.currentTime -
+                    remoteTime
+                );
+
+
+            if (
+                difference > 0.5
+            ) {
+
+                console.log(
+                    "[VideoPlayer] ⏩ SEEK remoto:",
+                    remoteTime
+                );
+
+
+                video.currentTime =
+                    remoteTime;
+
+
+                setCurrentTime(
+                    remoteTime
+                );
+
+            }
+
+        }
+
+
+        /*
+        ========================================================
+        PLAY REMOTO
+        ========================================================
+        */
+
+        if (
+            playback.isPlaying === true
+        ) {
+
+            if (
+                video.paused
+            ) {
+
+                console.log(
+                    "[VideoPlayer] ▶ Aplicando PLAY remoto"
+                );
+
+
+                remoteActionRef.current =
+                    "play";
+
+
+                video
+                    .play()
+                    .then(() => {
+
+                        console.log(
+                            "[VideoPlayer] ▶ PLAY remoto executado."
+                        );
+
+
+                        setAutoplayBlocked(
+                            false
+                        );
+
+                    })
+                    .catch((error) => {
+
+                        console.warn(
+                            "[VideoPlayer] PLAY remoto bloqueado:",
+                            error
+                        );
+
+
+                        remoteActionRef.current =
+                            null;
+
+
+                        /*
+                        ========================================
+                        MOSTRAR BOTÃO DE SINCRONIZAÇÃO
+                        ========================================
+                        */
+
+                        if (
+                            error?.name ===
+                            "NotAllowedError"
+                        ) {
+
+                            setAutoplayBlocked(
+                                true
+                            );
+
+                        }
+
+                    });
+
+            }
+
+        }
+
+
+        /*
+        ========================================================
+        PAUSE REMOTO
+        ========================================================
+        */
+
+        if (
+            playback.isPlaying === false
+        ) {
+
+            if (
+                !video.paused
+            ) {
+
+                console.log(
+                    "[VideoPlayer] ⏸ Aplicando PAUSE remoto"
+                );
+
+
+                remoteActionRef.current =
+                    "pause";
+
+
+                video.pause();
+
+            }
+
+        }
+
+    }, [
+        playback?.isPlaying,
+        playback?.currentTime
+    ]);
+
+
+    /*
+    ============================================================
+    SEEK
+    ============================================================
+    */
 
     function handleSeek(event) {
 
@@ -444,7 +946,9 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 
 
         const newTime =
-            Number(event.target.value);
+            Number(
+                event.target.value
+            );
 
 
         video.currentTime =
@@ -459,7 +963,10 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
         if (onSeek) {
 
             onSeek({
-                currentTime: newTime
+
+                currentTime:
+                    newTime
+
             });
 
         }
@@ -470,9 +977,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // VOLUME
-    // =========================
+    /*
+    ============================================================
+    VOLUME
+    ============================================================
+    */
 
     function handleVolumeChange(event) {
 
@@ -488,7 +997,9 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 
 
         const newVolume =
-            Number(event.target.value);
+            Number(
+                event.target.value
+            );
 
 
         video.volume =
@@ -500,17 +1011,27 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
         );
 
 
-        if (newVolume === 0) {
+        if (
+            newVolume === 0
+        ) {
 
-            video.muted = true;
+            video.muted =
+                true;
 
-            setIsMuted(true);
+
+            setIsMuted(
+                true
+            );
 
         } else {
 
-            video.muted = false;
+            video.muted =
+                false;
 
-            setIsMuted(false);
+
+            setIsMuted(
+                false
+            );
 
         }
 
@@ -520,9 +1041,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // MUTE
-    // =========================
+    /*
+    ============================================================
+    MUTE
+    ============================================================
+    */
 
     function handleToggleMute() {
 
@@ -555,9 +1078,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // FULLSCREEN
-    // =========================
+    /*
+    ============================================================
+    FULLSCREEN
+    ============================================================
+    */
 
     async function handleToggleFullscreen() {
 
@@ -574,7 +1099,9 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 
         try {
 
-            if (!document.fullscreenElement) {
+            if (
+                !document.fullscreenElement
+            ) {
 
                 if (
                     player.requestFullscreen
@@ -602,7 +1129,7 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                     document.webkitExitFullscreen
                 ) {
 
-                    document.webkitExitFullscreen();
+                    await document.webkitExitFullscreen();
 
                 }
 
@@ -611,7 +1138,7 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
         } catch (error) {
 
             console.error(
-                "Não foi possível alterar o modo fullscreen:",
+                "[VideoPlayer] Erro no fullscreen:",
                 error
             );
 
@@ -623,9 +1150,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // FULLSCREEN CHANGE
-    // =========================
+    /*
+    ============================================================
+    FULLSCREEN CHANGE
+    ============================================================
+    */
 
     useEffect(() => {
 
@@ -665,9 +1194,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }, []);
 
 
-    // =========================
-    // CONTROLES AUTOMÁTICOS
-    // =========================
+    /*
+    ============================================================
+    CONTROLES AUTOMÁTICOS
+    ============================================================
+    */
 
     useEffect(() => {
 
@@ -696,9 +1227,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     ]);
 
 
-    // =========================
-    // CLEANUP
-    // =========================
+    /*
+    ============================================================
+    CLEANUP
+    ============================================================
+    */
 
     useEffect(() => {
 
@@ -711,9 +1244,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }, []);
 
 
-    // =========================
-    // ERRO
-    // =========================
+    /*
+    ============================================================
+    ERRO
+    ============================================================
+    */
 
     function handleVideoError() {
 
@@ -730,9 +1265,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
-    // =========================
-    // CONTAINER CLICK
-    // =========================
+    /*
+    ============================================================
+    CLICK NO PLAYER
+    ============================================================
+    */
 
     function handlePlayerClick(event) {
 
@@ -752,20 +1289,31 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
     }
 
 
+    /*
+    ============================================================
+    RENDER
+    ============================================================
+    */
+
     return (
 
         <div
+
             ref={playerRef}
 
-            className={`${styles.player} ${
-                isFullscreen
-                    ? styles.fullscreen
-                    : ""
-            } ${
-                showControls
-                    ? styles.controlsVisible
-                    : styles.controlsHidden
-            }`}
+            className={`
+                ${styles.player}
+                ${
+                    isFullscreen
+                        ? styles.fullscreen
+                        : ""
+                }
+                ${
+                    showControls
+                        ? styles.controlsVisible
+                        : styles.controlsHidden
+                }
+            `}
 
             onMouseMove={
                 showPlayerControls
@@ -782,16 +1330,20 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
             onClick={
                 handlePlayerClick
             }
+
         >
 
-            {/* =========================
+            {/* ==================================================
                 VIDEO
-            ========================= */}
+            ================================================== */}
 
             <video
+
                 ref={videoRef}
 
-                className={styles.video}
+                className={
+                    styles.video
+                }
 
                 src={src}
 
@@ -799,11 +1351,17 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 
                 preload="metadata"
 
-                onPlay={handleVideoPlay}
+                onPlay={
+                    handleVideoPlay
+                }
 
-                onPause={handleVideoPause}
+                onPause={
+                    handleVideoPause
+                }
 
-                onTimeUpdate={handleTimeUpdate}
+                onTimeUpdate={
+                    handleTimeUpdate
+                }
 
                 onLoadedMetadata={
                     handleLoadedMetadata
@@ -812,12 +1370,13 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                 onError={
                     handleVideoError
                 }
+
             />
 
 
-            {/* =========================
+            {/* ==================================================
                 ERRO
-            ========================= */}
+            ================================================== */}
 
             {hasError && (
 
@@ -856,9 +1415,9 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 
                 <>
 
-                    {/* =========================
+                    {/* ==================================================
                         GRADIENTE
-                    ========================= */}
+                    ================================================== */}
 
                     <div
                         className={
@@ -867,11 +1426,70 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                     />
 
 
-                    {/* =========================
+                    {/* ==================================================
+                        AVISO DE AUTOPLAY
+                    ================================================== */}
+
+                    {autoplayBlocked && (
+
+                        <div
+                            className={
+                                styles.autoplayOverlay
+                            }
+                        >
+
+                            <div
+                                className={
+                                    styles.autoplayMessage
+                                }
+                            >
+
+                                <span>
+                                    ▶
+                                </span>
+
+
+                                <strong>
+                                    O vídeo está aguardando sincronização
+                                </strong>
+
+
+                                <small>
+                                    O navegador bloqueou a reprodução automática.
+                                </small>
+
+
+                                <button
+
+                                    type="button"
+
+                                    onClick={(event) => {
+
+                                        event.stopPropagation();
+
+                                        handleAutoplaySync();
+
+                                    }}
+
+                                >
+
+                                    ▶ Sincronizar vídeo
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    )}
+
+
+                    {/* ==================================================
                         BOTÃO CENTRAL
-                    ========================= */}
+                    ================================================== */}
 
                     <button
+
                         type="button"
 
                         className={
@@ -891,21 +1509,24 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                                 ? "Pausar vídeo"
                                 : "Reproduzir vídeo"
                         }
+
                     >
 
-                        {isPlaying
-                            ? "❚❚"
-                            : "▶"
+                        {
+                            isPlaying
+                                ? "❚❚"
+                                : "▶"
                         }
 
                     </button>
 
 
-                    {/* =========================
+                    {/* ==================================================
                         CONTROLES
-                    ========================= */}
+                    ================================================== */}
 
                     <div
+
                         className={
                             styles.controls
                         }
@@ -915,11 +1536,13 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                             event.stopPropagation();
 
                         }}
+
                     >
 
                         {/* PLAY / PAUSE */}
 
                         <button
+
                             type="button"
 
                             className={
@@ -935,32 +1558,39 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                                     ? "Pausar vídeo"
                                     : "Reproduzir vídeo"
                             }
+
                         >
 
-                            {isPlaying
-                                ? "❚❚"
-                                : "▶"
+                            {
+                                isPlaying
+                                    ? "❚❚"
+                                    : "▶"
                             }
 
                         </button>
 
 
-                        {/* TEMPO ATUAL */}
+                        {/* TEMPO */}
 
                         <span
                             className={
                                 styles.time
                             }
                         >
-                            {formatTime(
-                                currentTime
-                            )}
+
+                            {
+                                formatTime(
+                                    currentTime
+                                )
+                            }
+
                         </span>
 
 
                         {/* PROGRESSO */}
 
                         <input
+
                             type="range"
 
                             className={
@@ -984,6 +1614,7 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                             }
 
                             aria-label="Progresso do vídeo"
+
                         />
 
 
@@ -994,15 +1625,20 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                                 styles.time
                             }
                         >
-                            {formatTime(
-                                duration
-                            )}
+
+                            {
+                                formatTime(
+                                    duration
+                                )
+                            }
+
                         </span>
 
 
                         {/* MUTE */}
 
                         <button
+
                             type="button"
 
                             className={
@@ -1018,12 +1654,15 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                                     ? "Ativar som"
                                     : "Silenciar vídeo"
                             }
+
                         >
 
-                            {getVolumeIcon(
-                                volume,
-                                isMuted
-                            )}
+                            {
+                                getVolumeIcon(
+                                    volume,
+                                    isMuted
+                                )
+                            }
 
                         </button>
 
@@ -1031,6 +1670,7 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                         {/* VOLUME */}
 
                         <input
+
                             type="range"
 
                             className={
@@ -1054,12 +1694,14 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                             }
 
                             aria-label="Volume"
+
                         />
 
 
                         {/* FULLSCREEN */}
 
                         <button
+
                             type="button"
 
                             className={
@@ -1073,8 +1715,9 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                             aria-label={
                                 isFullscreen
                                     ? "Sair da tela cheia"
-                                    : "Entrar em tela cheia"
+                                    : "Entrar na tela cheia"
                             }
+
                         >
 
                             ⛶
@@ -1082,13 +1725,6 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
                         </button>
 
                     </div>
-
-
-                    {/* =========================
-                        DEBUG
-                    ========================= */}
-
-
 
                 </>
 
@@ -1101,9 +1737,11 @@ function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 }
 
 
-// =========================
-// ÍCONE DE VOLUME
-// =========================
+/*
+============================================================
+ÍCONE DE VOLUME
+============================================================
+*/
 
 function getVolumeIcon(
     volume,
@@ -1120,7 +1758,9 @@ function getVolumeIcon(
     }
 
 
-    if (volume < 0.5) {
+    if (
+        volume < 0.5
+    ) {
 
         return "🔉";
 
@@ -1132,9 +1772,11 @@ function getVolumeIcon(
 }
 
 
-// =========================
-// FORMATAR TEMPO
-// =========================
+/*
+============================================================
+FORMATAR TEMPO
+============================================================
+*/
 
 function formatTime(seconds) {
 
@@ -1166,7 +1808,9 @@ function formatTime(seconds) {
         );
 
 
-    if (hours > 0) {
+    if (
+        hours > 0
+    ) {
 
         return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
 

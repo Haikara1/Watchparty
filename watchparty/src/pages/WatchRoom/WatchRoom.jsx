@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
     useNavigate,
@@ -14,8 +14,8 @@ import playbackService from "../../services/playbackService";
 
 import realtimeService from "../../services/realtimeService";
 
-
 import styles from "./WatchRoom.module.css";
+
 import VideoPlayer from "../../components/VideoPlayer/VideoPlayer";
 
 
@@ -25,16 +25,89 @@ function WatchRoom() {
 
     const navigate = useNavigate();
 
+    const channelRef = useRef(null);
+
+
+    /*
+    ============================================================
+    SALA
+    ============================================================
+    */
 
     const [room, setRoom] = useState(null);
 
     const [isLoading, setIsLoading] = useState(true);
 
+
+    /*
+    ============================================================
+    PLAYBACK
+    ============================================================
+    */
+
     const [playbackState, setPlaybackState] = useState({
+
         isPlaying: false,
+
         currentTime: 0
+
     });
 
+
+    /*
+    ============================================================
+    CHAT
+    ============================================================
+    */
+
+    const [messages, setMessages] = useState([]);
+
+    const [chatMessage, setChatMessage] = useState("");
+
+
+    /*
+    ============================================================
+    PRESENCE
+    ============================================================
+    */
+
+    const [participants, setParticipants] =
+        useState([]);
+
+
+    /*
+    ============================================================
+    CONTROLE DO CABEÇALHO DO CHAT
+    ============================================================
+    */
+
+    const [showParticipants, setShowParticipants] =
+        useState(false);
+
+
+    /*
+    ============================================================
+    IDENTIDADE TEMPORÁRIA DO USUÁRIO
+    ============================================================
+    */
+
+    const userIdRef = useRef(
+        crypto.randomUUID()
+    );
+
+
+    const usernameRef = useRef(
+        `Usuário ${Math.floor(
+            Math.random() * 1000
+        )}`
+    );
+
+
+    /*
+    ============================================================
+    CARREGAR SALA
+    ============================================================
+    */
 
     useEffect(() => {
 
@@ -44,21 +117,17 @@ function WatchRoom() {
 
         if (foundRoom) {
 
-            setRoom(
-                foundRoom
-            );
+            setRoom(foundRoom);
 
 
             setPlaybackState({
 
                 isPlaying:
-                    foundRoom.playback
-                        ?.isPlaying
+                    foundRoom.playback?.isPlaying
                     ?? false,
 
                 currentTime:
-                    foundRoom.playback
-                        ?.currentTime
+                    foundRoom.playback?.currentTime
                     ?? 0
 
             });
@@ -74,6 +143,13 @@ function WatchRoom() {
 
     }, [roomId]);
 
+
+    /*
+    ============================================================
+    SUPABASE REALTIME
+    ============================================================
+    */
+
     useEffect(() => {
 
         if (!roomId) {
@@ -83,43 +159,426 @@ function WatchRoom() {
         }
 
 
+        let isActive = true;
+
+
+        console.log(
+            "[Realtime] Iniciando conexão da sala:",
+            roomId
+        );
+
+
         const channel =
             realtimeService.createRoomChannel(
                 roomId
             );
 
 
-        realtimeService
-            .connect(channel)
-            .then(() => {
+        channelRef.current =
+            channel;
+
+
+        /*
+        ========================================================
+        OUVIR PLAYBACK
+        ========================================================
+        */
+
+        realtimeService.onPlaybackEvent(
+            channel,
+            (event) => {
+
+                if (!isActive) {
+
+                    return;
+
+                }
+
 
                 console.log(
-                    "[Realtime] Canal conectado:",
-                    roomId
+                    "[Realtime] Playback recebido:",
+                    event
                 );
 
-            })
-            .catch((error) => {
 
-                console.error(
-                    "[Realtime] Erro ao conectar:",
-                    error
+                /*
+                ==================================================
+                PLAY
+                ==================================================
+                */
+
+                if (
+                    event.action ===
+                    "play"
+                ) {
+
+                    console.log(
+                        "[Realtime] Aplicando PLAY remoto:",
+                        event.currentTime
+                    );
+
+
+                    setPlaybackState({
+
+                        isPlaying: true,
+
+                        currentTime:
+                            event.currentTime
+
+                    });
+
+                }
+
+
+                /*
+                ==================================================
+                PAUSE
+                ==================================================
+                */
+
+                if (
+                    event.action ===
+                    "pause"
+                ) {
+
+                    console.log(
+                        "[Realtime] Aplicando PAUSE remoto:",
+                        event.currentTime
+                    );
+
+
+                    setPlaybackState({
+
+                        isPlaying: false,
+
+                        currentTime:
+                            event.currentTime
+
+                    });
+
+                }
+
+
+                /*
+                ==================================================
+                SEEK
+                ==================================================
+                */
+
+                if (
+                    event.action ===
+                    "seek"
+                ) {
+
+                    console.log(
+                        "[Realtime] Aplicando SEEK remoto:",
+                        event.currentTime
+                    );
+
+
+                    setPlaybackState(
+                        previous => ({
+
+                            ...previous,
+
+                            currentTime:
+                                event.currentTime
+
+                        })
+                    );
+
+                }
+
+            }
+        );
+
+
+        /*
+        ========================================================
+        OUVIR CHAT
+        ========================================================
+        */
+
+        realtimeService.onChatMessage(
+            channel,
+            (message) => {
+
+                if (!isActive) {
+
+                    return;
+
+                }
+
+
+                console.log(
+                    "[Realtime] Chat recebido:",
+                    message
                 );
 
-            });
 
+                setMessages(
+                    previous => {
+
+                        const alreadyExists =
+                            previous.some(
+                                item =>
+                                    item.id ===
+                                    message.id
+                            );
+
+
+                        if (alreadyExists) {
+
+                            return previous;
+
+                        }
+
+
+                        return [
+                            ...previous,
+                            message
+                        ];
+
+                    }
+                );
+
+            }
+        );
+
+
+        /*
+        ========================================================
+        OUVIR PRESENCE
+        ========================================================
+        */
+
+        realtimeService.onPresenceChange(
+            channel,
+            (state) => {
+
+                if (!isActive) {
+
+                    return;
+
+                }
+
+
+                console.log(
+                    "[Presence] Estado recebido:",
+                    state
+                );
+
+
+                /*
+                ==================================================
+                TRANSFORMAR PRESENCE EM LISTA
+                ==================================================
+                */
+
+                const users = [];
+
+
+                Object.entries(
+                    state
+                ).forEach(
+                    ([key, entries]) => {
+
+                        if (
+                            !Array.isArray(
+                                entries
+                            )
+                        ) {
+
+                            return;
+
+                        }
+
+
+                        entries.forEach(
+                            (user) => {
+
+                                users.push({
+
+                                    ...user,
+
+                                    presenceKey:
+                                        key
+
+                                });
+
+                            }
+                        );
+
+                    }
+                );
+
+
+                /*
+                ==================================================
+                REMOVER DUPLICADOS
+                ==================================================
+                */
+
+                const uniqueUsers =
+                    users.filter(
+                        (
+                            user,
+                            index,
+                            array
+                        ) =>
+                            index ===
+                            array.findIndex(
+                                item =>
+                                    item.userId ===
+                                    user.userId
+                            )
+                    );
+
+
+                console.log(
+                    "[Presence] Participantes:",
+                    uniqueUsers
+                );
+
+
+                setParticipants(
+                    uniqueUsers
+                );
+
+            }
+        );
+
+
+        /*
+        ========================================================
+        CONECTAR
+        ========================================================
+        */
+
+        realtimeService
+            .connect(channel)
+
+            .then(
+                async () => {
+
+                    if (!isActive) {
+
+                        return;
+
+                    }
+
+
+                    console.log(
+                        "[Realtime] Canal conectado:",
+                        roomId
+                    );
+
+
+                    /*
+                    ==============================================
+                    REGISTRAR USUÁRIO NA SALA
+                    ==============================================
+                    */
+
+                    const currentUser = {
+
+                        userId:
+                            userIdRef.current,
+
+                        username:
+                            usernameRef.current
+
+                    };
+
+
+                    try {
+
+                        await realtimeService.trackPresence(
+                            channel,
+                            currentUser
+                        );
+
+
+                        console.log(
+                            "[Presence] Usuário entrou na sala:",
+                            currentUser
+                        );
+
+                    } catch (error) {
+
+                        console.error(
+                            "[Presence] Erro ao registrar usuário:",
+                            error
+                        );
+
+                    }
+
+                }
+            )
+
+            .catch(
+                (error) => {
+
+                    if (!isActive) {
+
+                        return;
+
+                    }
+
+
+                    console.error(
+                        "[Realtime] Erro ao conectar:",
+                        error
+                    );
+
+                }
+            );
+
+
+        /*
+        ========================================================
+        CLEANUP
+        ========================================================
+        */
 
         return () => {
 
-            realtimeService.disconnect(
+            isActive = false;
+
+
+            setParticipants([]);
+
+
+            setShowParticipants(false);
+
+
+            if (
+                channelRef.current ===
                 channel
-            );
+            ) {
+
+                realtimeService.disconnect(
+                    channel
+                );
+
+
+                channelRef.current =
+                    null;
+
+            }
 
         };
 
     }, [roomId]);
 
-    function handlePlaybackPlay(state) {
+
+    /*
+    ============================================================
+    PLAY
+    ============================================================
+    */
+
+    async function handlePlaybackPlay(state) {
 
         const event =
             playbackService.createPlayEvent(
@@ -149,13 +608,72 @@ function WatchRoom() {
 
 
         console.log(
-            "Playback salvo:",
+            "[Playback] Play salvo:",
             event
         );
 
+
+        const activeChannel =
+            channelRef.current;
+
+
+        console.log(
+            "[Realtime] Channel disponível:",
+            !!activeChannel
+        );
+
+
+        if (!activeChannel) {
+
+            console.warn(
+                "[Realtime] Canal ainda não está disponível."
+            );
+
+
+            return;
+
+        }
+
+
+        try {
+
+            const result =
+                await realtimeService.sendPlaybackEvent(
+                    activeChannel,
+                    event
+                );
+
+
+            console.log(
+                "[Realtime] Playback enviado:",
+                event
+            );
+
+
+            console.log(
+                "[Realtime] Resultado do envio:",
+                result
+            );
+
+        } catch (error) {
+
+            console.error(
+                "[Realtime] Erro ao enviar playback:",
+                error
+            );
+
+        }
+
     }
 
-    function handlePlaybackPause(state) {
+
+    /*
+    ============================================================
+    PAUSE
+    ============================================================
+    */
+
+    async function handlePlaybackPause(state) {
 
         const event =
             playbackService.createPauseEvent(
@@ -185,13 +703,66 @@ function WatchRoom() {
 
 
         console.log(
-            "Playback salvo:",
+            "[Playback] Pause salvo:",
             event
         );
 
+
+        const activeChannel =
+            channelRef.current;
+
+
+        if (!activeChannel) {
+
+            console.warn(
+                "[Realtime] Canal ainda não está disponível."
+            );
+
+
+            return;
+
+        }
+
+
+        try {
+
+            const result =
+                await realtimeService.sendPlaybackEvent(
+                    activeChannel,
+                    event
+                );
+
+
+            console.log(
+                "[Realtime] Pause enviado:",
+                event
+            );
+
+
+            console.log(
+                "[Realtime] Resultado do envio:",
+                result
+            );
+
+        } catch (error) {
+
+            console.error(
+                "[Realtime] Erro ao enviar pause:",
+                error
+            );
+
+        }
+
     }
 
-    function handlePlaybackSeek(state) {
+
+    /*
+    ============================================================
+    SEEK
+    ============================================================
+    */
+
+    async function handlePlaybackSeek(state) {
 
         const event =
             playbackService.createSeekEvent(
@@ -221,12 +792,209 @@ function WatchRoom() {
 
 
         console.log(
-            "Playback salvo:",
+            "[Playback] Seek salvo:",
             event
         );
 
+
+        const activeChannel =
+            channelRef.current;
+
+
+        if (!activeChannel) {
+
+            console.warn(
+                "[Realtime] Canal ainda não está disponível."
+            );
+
+
+            return;
+
+        }
+
+
+        try {
+
+            const result =
+                await realtimeService.sendPlaybackEvent(
+                    activeChannel,
+                    event
+                );
+
+
+            console.log(
+                "[Realtime] Seek enviado:",
+                event
+            );
+
+
+            console.log(
+                "[Realtime] Resultado do envio:",
+                result
+            );
+
+        } catch (error) {
+
+            console.error(
+                "[Realtime] Erro ao enviar seek:",
+                error
+            );
+
+        }
+
     }
 
+
+    /*
+    ============================================================
+    ENVIAR MENSAGEM
+    ============================================================
+    */
+
+    async function handleSendMessage(event) {
+
+        event.preventDefault();
+
+
+        const text =
+            chatMessage.trim();
+
+
+        if (!text) {
+
+            return;
+
+        }
+
+
+        const activeChannel =
+            channelRef.current;
+
+
+        if (!activeChannel) {
+
+            console.warn(
+                "[Realtime] Canal ainda não está disponível."
+            );
+
+
+            return;
+
+        }
+
+
+        /*
+        ========================================================
+        CRIAR MENSAGEM
+        ========================================================
+        */
+
+        const message = {
+
+            id:
+                crypto.randomUUID(),
+
+            userId:
+                userIdRef.current,
+
+            username:
+                usernameRef.current,
+
+            message:
+                text,
+
+            timestamp:
+                Date.now()
+
+        };
+
+
+        console.log(
+            "[Realtime] Enviando chat:",
+            message
+        );
+
+
+        try {
+
+            /*
+            ====================================================
+            ENVIAR PARA SUPABASE
+            ====================================================
+            */
+
+            const result =
+                await realtimeService.sendChatMessage(
+                    activeChannel,
+                    message
+                );
+
+
+            console.log(
+                "[Realtime] Chat enviado:",
+                result
+            );
+
+
+            /*
+            ====================================================
+            ADICIONAR NA PRÓPRIA ABA
+            ====================================================
+            */
+
+            setMessages(
+                previous => {
+
+                    const alreadyExists =
+                        previous.some(
+                            item =>
+                                item.id ===
+                                message.id
+                        );
+
+
+                    if (alreadyExists) {
+
+                        return previous;
+
+                    }
+
+
+                    return [
+                        ...previous,
+                        message
+                    ];
+
+                }
+            );
+
+
+            /*
+            ====================================================
+            LIMPAR INPUT
+            ====================================================
+            */
+
+            setChatMessage("");
+
+
+        } catch (error) {
+
+            console.error(
+                "[Realtime] Erro ao enviar chat:",
+                error
+            );
+
+        }
+
+    }
+
+
+    /*
+    ============================================================
+    VOLTAR PARA HOME
+    ============================================================
+    */
 
     function handleGoHome() {
 
@@ -234,6 +1002,12 @@ function WatchRoom() {
 
     }
 
+
+    /*
+    ============================================================
+    LOADING
+    ============================================================
+    */
 
     if (isLoading) {
 
@@ -243,9 +1017,12 @@ function WatchRoom() {
 
                 <div className={styles.loading}>
 
-                    <span className={styles.spinner}>
+                    <span
+                        className={styles.spinner}
+                    >
                         ◌
                     </span>
+
 
                     <p>
                         Carregando sala...
@@ -260,6 +1037,12 @@ function WatchRoom() {
     }
 
 
+    /*
+    ============================================================
+    SALA NÃO ENCONTRADA
+    ============================================================
+    */
+
     if (!room) {
 
         return (
@@ -268,7 +1051,11 @@ function WatchRoom() {
 
                 <div className={styles.notFound}>
 
-                    <span className={styles.notFoundIcon}>
+                    <span
+                        className={
+                            styles.notFoundIcon
+                        }
+                    >
                         🎬
                     </span>
 
@@ -286,8 +1073,12 @@ function WatchRoom() {
 
                     <button
                         type="button"
-                        className={styles.primaryButton}
-                        onClick={handleGoHome}
+                        className={
+                            styles.primaryButton
+                        }
+                        onClick={
+                            handleGoHome
+                        }
                     >
                         Voltar para o início
                     </button>
@@ -301,21 +1092,33 @@ function WatchRoom() {
     }
 
 
+    /*
+    ============================================================
+    INTERFACE
+    ============================================================
+    */
+
     return (
 
         <main className={styles.page}>
 
-            {/* =========================
-                HEADER DA SALA
-            ========================= */}
+
+            {/* ==================================================
+                HEADER
+            ================================================== */}
 
             <header className={styles.header}>
 
                 <div className={styles.brand}>
 
-                    <span className={styles.brandIcon}>
+                    <span
+                        className={
+                            styles.brandIcon
+                        }
+                    >
                         🎬
                     </span>
+
 
                     <span>
                         WatchParty
@@ -326,13 +1129,21 @@ function WatchRoom() {
 
                 <div className={styles.roomInfo}>
 
-                    <span className={styles.roomName}>
+                    <span
+                        className={
+                            styles.roomName
+                        }
+                    >
                         {room.name}
                     </span>
 
 
-                    <span className={styles.roomMembers}>
-                        👥 0/{room.maxUsers}
+                    <span
+                        className={
+                            styles.roomMembers
+                        }
+                    >
+                        👥 {participants.length}/{room.maxUsers}
                     </span>
 
                 </div>
@@ -340,7 +1151,9 @@ function WatchRoom() {
 
                 <button
                     type="button"
-                    className={styles.headerButton}
+                    className={
+                        styles.headerButton
+                    }
                     aria-label="Configurações da sala"
                 >
                     ⚙
@@ -349,124 +1162,471 @@ function WatchRoom() {
             </header>
 
 
-            {/* =========================
-                ÁREA PRINCIPAL
-            ========================= */}
+            {/* ==================================================
+                WORKSPACE
+            ================================================== */}
 
             <div className={styles.workspace}>
 
 
-                {/* =========================
+                {/* ==================================================
                     PLAYER
-                ========================= */}
+                    ================================================== */}
 
-                <section className={styles.playerSection}>
+                <section
+                    className={
+                        styles.playerSection
+                    }
+                >
 
                     <VideoPlayer
-                        src={room.contentUrl}
 
-                        playback={playbackState}
+                        src={
+                            room.contentUrl
+                        }
 
-                        onPlay={handlePlaybackPlay}
+                        playback={
+                            playbackState
+                        }
 
-                        onPause={handlePlaybackPause}
+                        onPlay={
+                            handlePlaybackPlay
+                        }
 
-                        onSeek={handlePlaybackSeek}
+                        onPause={
+                            handlePlaybackPause
+                        }
+
+                        onSeek={
+                            handlePlaybackSeek
+                        }
+
                     />
 
+
+                    {/* DEBUG PLAYBACK */}
+
                     <div
-                        style={{
-                            position: "absolute",
-                            left: "12px",
-                            top: "12px",
-                            zIndex: 20,
-                            padding: "6px 10px",
-                            borderRadius: "8px",
-                            background: "rgba(0, 0, 0, 0.7)",
-                            color: "#fff",
-                            fontSize: "11px",
-                            pointerEvents: "none"
-                        }}
+                        className={
+                            styles.playbackDebug
+                        }
                     >
-                        {playbackState.isPlaying
-                            ? "▶ Reproduzindo"
-                            : "⏸ Pausado"
+
+                        {
+                            playbackState.isPlaying
+                                ? "▶ Reproduzindo"
+                                : "⏸ Pausado"
                         }
 
                         {" • "}
 
-                        {Math.floor(
-                            playbackState.currentTime
-                        )}s
-                    </div>
+                        {
+                            Math.floor(
+                                playbackState.currentTime
+                            )
+                        }
 
+                        s
+
+                    </div>
 
                 </section>
 
 
-                {/* =========================
+                {/* ==================================================
                     CHAT
-                ========================= */}
+                    ================================================== */}
 
-                <aside className={styles.chat}>
+                <aside
+                    className={
+                        styles.chat
+                    }
+                >
 
-                    <div className={styles.chatHeader}>
 
-                        <div>
+                    {/* ==================================================
+                        HEADER DO CHAT
+                    ================================================== */}
 
-                            <strong>
-                                Chat
-                            </strong>
+                    <div
+                        className={
+                            styles.chatHeader
+                        }
+                    >
 
-                            <span>
-                                0 participantes
-                            </span>
+                        {!showParticipants ? (
 
-                        </div>
+                            <div
+                                className={
+                                    styles.chatHeaderInfo
+                                }
+                            >
+
+                                <strong>
+                                    Chat
+                                </strong>
+
+
+                                <button
+                                    type="button"
+                                    className={
+                                        styles.chatParticipantsButton
+                                    }
+                                    onClick={() =>
+                                        setShowParticipants(
+                                            true
+                                        )
+                                    }
+                                    aria-label="Ver participantes"
+                                >
+
+                                    <span>
+                                        {participants.length}{" "}
+                                        {
+                                            participants.length === 1
+                                                ? "participante"
+                                                : "participantes"
+                                        }
+                                    </span>
+
+
+                                    <span
+                                        className={
+                                            styles.chatHeaderArrow
+                                        }
+                                    >
+                                        →
+                                    </span>
+
+                                </button>
+
+                            </div>
+
+                        ) : (
+
+                            <div
+                                className={
+                                    styles.participantsHeader
+                                }
+                            >
+
+                                <button
+                                    type="button"
+                                    className={
+                                        styles.participantsBackButton
+                                    }
+                                    onClick={() =>
+                                        setShowParticipants(
+                                            false
+                                        )
+                                    }
+                                    aria-label="Voltar para o chat"
+                                >
+                                    ←
+                                </button>
+
+
+                                <div
+                                    className={
+                                        styles.participantsTitle
+                                    }
+                                >
+
+                                    <strong>
+                                        Participantes
+                                    </strong>
+
+
+                                    <span>
+                                        {participants.length}{" "}
+                                        {
+                                            participants.length === 1
+                                                ? "pessoa"
+                                                : "pessoas"
+                                        }
+                                    </span>
+
+                                </div>
+
+                            </div>
+
+                        )}
 
                     </div>
 
 
-                    <div className={styles.chatMessages}>
+                    {/* ==================================================
+                        CONTEÚDO DO CHAT / PARTICIPANTES
+                        ================================================== */}
 
-                        <div className={styles.emptyChat}>
+                    {showParticipants ? (
 
-                            <span>
-                                💬
-                            </span>
-
-
-                            <p>
-                                Nenhuma mensagem ainda.
-                            </p>
-
-
-                            <small>
-                                Comece a conversa!
-                            </small>
-
-                        </div>
-
-                    </div>
-
-
-                    <form className={styles.chatForm}>
-
-                        <input
-                            type="text"
-                            placeholder="Digite uma mensagem..."
-                            aria-label="Mensagem"
-                        />
-
-
-                        <button
-                            type="submit"
-                            aria-label="Enviar mensagem"
+                        <div
+                            className={
+                                styles.participantsList
+                            }
                         >
-                            ➤
-                        </button>
 
-                    </form>
+                            {participants.length === 0 ? (
+
+                                <div
+                                    className={
+                                        styles.emptyParticipants
+                                    }
+                                >
+
+                                    <span>
+                                        👥
+                                    </span>
+
+
+                                    <p>
+                                        Nenhum participante encontrado.
+                                    </p>
+
+                                </div>
+
+                            ) : (
+
+                                participants.map(
+                                    (participant) => {
+
+                                        const isCurrentUser =
+                                            participant.userId ===
+                                            userIdRef.current;
+
+
+                                        return (
+
+                                            <div
+                                                key={
+                                                    participant.userId
+                                                }
+                                                className={
+                                                    styles.participantItem
+                                                }
+                                            >
+
+                                                <div
+                                                    className={
+                                                        styles.participantAvatar
+                                                    }
+                                                >
+                                                    {
+                                                        participant.username
+                                                            ?.charAt(0)
+                                                            ?.toUpperCase()
+                                                        || "U"
+                                                    }
+                                                </div>
+
+
+                                                <div
+                                                    className={
+                                                        styles.participantInfo
+                                                    }
+                                                >
+
+                                                    <strong>
+
+                                                        {
+                                                            participant.username
+                                                        }
+
+
+                                                        {isCurrentUser && (
+
+                                                            <span
+                                                                className={
+                                                                    styles.youLabel
+                                                                }
+                                                            >
+                                                                Você
+                                                            </span>
+
+                                                        )}
+
+                                                    </strong>
+
+
+                                                    <span>
+                                                        ● Online
+                                                    </span>
+
+                                                </div>
+
+                                            </div>
+
+                                        );
+
+                                    }
+                                )
+
+                            )}
+
+                        </div>
+
+                    ) : (
+
+                        <div
+                            className={
+                                styles.chatMessages
+                            }
+                        >
+
+                            {messages.length === 0 ? (
+
+                                <div
+                                    className={
+                                        styles.emptyChat
+                                    }
+                                >
+
+                                    <span>
+                                        💬
+                                    </span>
+
+
+                                    <p>
+                                        Nenhuma mensagem ainda.
+                                    </p>
+
+
+                                    <small>
+                                        Comece a conversa!
+                                    </small>
+
+                                </div>
+
+                            ) : (
+
+                                messages.map(
+                                    (message) => {
+
+                                        const isOwnMessage =
+                                            message.userId ===
+                                            userIdRef.current;
+
+
+                                        return (
+
+                                            <div
+                                                key={
+                                                    message.id
+                                                }
+                                                className={`
+                                                    ${styles.chatMessage}
+                                                    ${
+                                                        isOwnMessage
+                                                            ? styles.chatMessageOwn
+                                                            : ""
+                                                    }
+                                                `}
+                                            >
+
+                                                <div
+                                                    className={
+                                                        styles.chatMessageHeader
+                                                    }
+                                                >
+
+                                                    <strong>
+                                                        {
+                                                            message.username
+                                                        }
+                                                    </strong>
+
+
+                                                    <span>
+                                                        {
+                                                            formatMessageTime(
+                                                                message.timestamp
+                                                            )
+                                                        }
+                                                    </span>
+
+                                                </div>
+
+
+                                                <p
+                                                    className={
+                                                        styles.chatMessageText
+                                                    }
+                                                >
+                                                    {
+                                                        message.message
+                                                    }
+                                                </p>
+
+                                            </div>
+
+                                        );
+
+                                    }
+                                )
+
+                            )}
+
+                        </div>
+
+                    )}
+
+
+                    {/* ==================================================
+                        FORMULÁRIO DO CHAT
+                        ================================================== */}
+
+                    {!showParticipants && (
+
+                        <form
+                            className={
+                                styles.chatForm
+                            }
+                            onSubmit={
+                                handleSendMessage
+                            }
+                        >
+
+                            <input
+                                type="text"
+
+                                placeholder={
+                                    "Digite uma mensagem..."
+                                }
+
+                                aria-label="Mensagem"
+
+                                value={
+                                    chatMessage
+                                }
+
+                                onChange={
+                                    (event) =>
+                                        setChatMessage(
+                                            event.target.value
+                                        )
+                                }
+
+                                maxLength={500}
+
+                            />
+
+
+                            <button
+                                type="submit"
+
+                                aria-label="Enviar mensagem"
+
+                                disabled={
+                                    !chatMessage.trim()
+                                }
+                            >
+                                ➤
+                            </button>
+
+                        </form>
+
+                    )}
 
                 </aside>
 
@@ -474,6 +1634,34 @@ function WatchRoom() {
 
         </main>
 
+    );
+
+}
+
+
+/*
+============================================================
+FORMATAR HORÁRIO DA MENSAGEM
+============================================================
+*/
+
+function formatMessageTime(timestamp) {
+
+    if (!timestamp) {
+
+        return "";
+
+    }
+
+
+    return new Date(
+        timestamp
+    ).toLocaleTimeString(
+        "pt-BR",
+        {
+            hour: "2-digit",
+            minute: "2-digit"
+        }
     );
 
 }
