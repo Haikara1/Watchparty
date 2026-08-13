@@ -3,15 +3,17 @@ import { useEffect, useRef, useState } from "react";
 import styles from "./VideoPlayer.module.css";
 
 
-function VideoPlayer({ src }) {
+function VideoPlayer({ src, onPlay, onPause, onSeek }) {
 
     const playerRef = useRef(null);
 
     const videoRef = useRef(null);
 
+    const controlsTimeoutRef = useRef(null);
+
 
     // =========================
-    // ESTADO DO PLAYER
+    // PLAYER STATE
     // =========================
 
     const [isPlaying, setIsPlaying] = useState(false);
@@ -28,6 +30,131 @@ function VideoPlayer({ src }) {
 
     const [hasError, setHasError] = useState(false);
 
+    const [showControls, setShowControls] = useState(true);
+
+
+    // =========================
+    // DETECTAR MOBILE / TOUCH
+    // =========================
+
+    const [isTouchDevice, setIsTouchDevice] = useState(false);
+
+
+    useEffect(() => {
+
+        const mediaQuery =
+            window.matchMedia("(pointer: coarse)");
+
+
+        function updateTouchDevice() {
+
+            setIsTouchDevice(
+                mediaQuery.matches
+            );
+
+        }
+
+
+        updateTouchDevice();
+
+
+        mediaQuery.addEventListener(
+            "change",
+            updateTouchDevice
+        );
+
+
+        return () => {
+
+            mediaQuery.removeEventListener(
+                "change",
+                updateTouchDevice
+            );
+
+        };
+
+    }, []);
+
+
+    // =========================
+    // LIMPAR TIMER
+    // =========================
+
+    function clearControlsTimeout() {
+
+        if (
+            controlsTimeoutRef.current
+        ) {
+
+            clearTimeout(
+                controlsTimeoutRef.current
+            );
+
+            controlsTimeoutRef.current = null;
+
+        }
+
+    }
+
+
+    // =========================
+    // ESCONDER CONTROLES
+    // =========================
+
+    function scheduleControlsHide() {
+
+        clearControlsTimeout();
+
+
+        if (isTouchDevice) {
+
+            return;
+
+        }
+
+
+        if (!isPlaying) {
+
+            return;
+
+        }
+
+
+        controlsTimeoutRef.current =
+            setTimeout(() => {
+
+                setShowControls(false);
+
+            }, 3000);
+
+    }
+
+
+    // =========================
+    // MOSTRAR CONTROLES
+    // =========================
+
+    function showPlayerControls() {
+
+        setShowControls(true);
+
+        scheduleControlsHide();
+
+    }
+
+
+    // =========================
+    // INTERAÇÃO DO PLAYER
+    // =========================
+
+    function handlePlayerInteraction() {
+
+        setShowControls(true);
+
+        scheduleControlsHide();
+
+    }
+
 
     // =========================
     // PLAY
@@ -35,10 +162,14 @@ function VideoPlayer({ src }) {
 
     function handlePlay() {
 
-        const video = videoRef.current;
+        const video =
+            videoRef.current;
+
 
         if (!video) {
+
             return;
+
         }
 
 
@@ -62,10 +193,14 @@ function VideoPlayer({ src }) {
 
     function handlePause() {
 
-        const video = videoRef.current;
+        const video =
+            videoRef.current;
+
 
         if (!video) {
+
             return;
+
         }
 
 
@@ -80,10 +215,14 @@ function VideoPlayer({ src }) {
 
     function handleTogglePlay() {
 
-        const video = videoRef.current;
+        const video =
+            videoRef.current;
+
 
         if (!video) {
+
             return;
+
         }
 
 
@@ -97,6 +236,9 @@ function VideoPlayer({ src }) {
 
         }
 
+
+        setShowControls(true);
+
     }
 
 
@@ -106,14 +248,24 @@ function VideoPlayer({ src }) {
 
     function handleVideoPlay() {
 
+        const video =
+            videoRef.current;
+
+
         setIsPlaying(true);
 
-        console.log(
-            "[PLAYER] Play"
-        );
+        setShowControls(true);
+
+
+        if (onPlay && video) {
+
+            onPlay({
+                currentTime: video.currentTime
+            });
+
+        }
 
     }
-
 
     // =========================
     // PAUSE EVENT
@@ -121,13 +273,24 @@ function VideoPlayer({ src }) {
 
     function handleVideoPause() {
 
+        const video =
+            videoRef.current;
+
+
         setIsPlaying(false);
 
-        console.log(
-            "[PLAYER] Pause",
-            "Tempo:",
-            videoRef.current?.currentTime
-        );
+        setShowControls(true);
+
+        clearControlsTimeout();
+
+
+        if (onPause && video) {
+
+            onPause({
+                currentTime: video.currentTime
+            });
+
+        }
 
     }
 
@@ -138,10 +301,14 @@ function VideoPlayer({ src }) {
 
     function handleTimeUpdate() {
 
-        const video = videoRef.current;
+        const video =
+            videoRef.current;
+
 
         if (!video) {
+
             return;
+
         }
 
 
@@ -158,10 +325,14 @@ function VideoPlayer({ src }) {
 
     function handleLoadedMetadata() {
 
-        const video = videoRef.current;
+        const video =
+            videoRef.current;
+
 
         if (!video) {
+
             return;
+
         }
 
 
@@ -180,10 +351,6 @@ function VideoPlayer({ src }) {
         );
 
 
-        console.log(
-            "[PLAYER] Duração:",
-            video.duration
-        );
 
     }
 
@@ -194,10 +361,14 @@ function VideoPlayer({ src }) {
 
     function handleSeek(event) {
 
-        const video = videoRef.current;
+        const video =
+            videoRef.current;
+
 
         if (!video) {
+
             return;
+
         }
 
 
@@ -213,6 +384,18 @@ function VideoPlayer({ src }) {
             newTime
         );
 
+
+        if (onSeek) {
+
+            onSeek({
+                currentTime: newTime
+            });
+
+        }
+
+
+        handlePlayerInteraction();
+
     }
 
 
@@ -222,10 +405,14 @@ function VideoPlayer({ src }) {
 
     function handleVolumeChange(event) {
 
-        const video = videoRef.current;
+        const video =
+            videoRef.current;
+
 
         if (!video) {
+
             return;
+
         }
 
 
@@ -256,6 +443,9 @@ function VideoPlayer({ src }) {
 
         }
 
+
+        handlePlayerInteraction();
+
     }
 
 
@@ -265,10 +455,14 @@ function VideoPlayer({ src }) {
 
     function handleToggleMute() {
 
-        const video = videoRef.current;
+        const video =
+            videoRef.current;
+
 
         if (!video) {
+
             return;
+
         }
 
 
@@ -284,6 +478,9 @@ function VideoPlayer({ src }) {
             newMutedState
         );
 
+
+        handlePlayerInteraction();
+
     }
 
 
@@ -293,10 +490,14 @@ function VideoPlayer({ src }) {
 
     async function handleToggleFullscreen() {
 
-        const player = playerRef.current;
+        const player =
+            playerRef.current;
+
 
         if (!player) {
+
             return;
+
         }
 
 
@@ -304,24 +505,31 @@ function VideoPlayer({ src }) {
 
             if (!document.fullscreenElement) {
 
-                if (player.requestFullscreen) {
+                if (
+                    player.requestFullscreen
+                ) {
 
                     await player.requestFullscreen();
 
-                } else if (player.webkitRequestFullscreen) {
+                } else if (
+                    player.webkitRequestFullscreen
+                ) {
 
                     player.webkitRequestFullscreen();
 
                 }
 
-
             } else {
 
-                if (document.exitFullscreen) {
+                if (
+                    document.exitFullscreen
+                ) {
 
                     await document.exitFullscreen();
 
-                } else if (document.webkitExitFullscreen) {
+                } else if (
+                    document.webkitExitFullscreen
+                ) {
 
                     document.webkitExitFullscreen();
 
@@ -338,24 +546,32 @@ function VideoPlayer({ src }) {
 
         }
 
+
+        setShowControls(true);
+
     }
 
 
     // =========================
-    // DETECTAR FULLSCREEN
+    // FULLSCREEN CHANGE
     // =========================
 
     useEffect(() => {
 
         function handleFullscreenChange() {
 
-            const isActive =
-                Boolean(document.fullscreenElement);
+            const active =
+                Boolean(
+                    document.fullscreenElement
+                );
 
 
             setIsFullscreen(
-                isActive
+                active
             );
+
+
+            setShowControls(true);
 
         }
 
@@ -379,6 +595,52 @@ function VideoPlayer({ src }) {
 
 
     // =========================
+    // CONTROLES AUTOMÁTICOS
+    // =========================
+
+    useEffect(() => {
+
+        if (isPlaying) {
+
+            scheduleControlsHide();
+
+        } else {
+
+            clearControlsTimeout();
+
+            setShowControls(true);
+
+        }
+
+
+        return () => {
+
+            clearControlsTimeout();
+
+        };
+
+    }, [
+        isPlaying,
+        isTouchDevice
+    ]);
+
+
+    // =========================
+    // CLEANUP
+    // =========================
+
+    useEffect(() => {
+
+        return () => {
+
+            clearControlsTimeout();
+
+        };
+
+    }, []);
+
+
+    // =========================
     // ERRO
     // =========================
 
@@ -392,46 +654,63 @@ function VideoPlayer({ src }) {
 
         setHasError(true);
 
+        setShowControls(true);
+
     }
 
 
     // =========================
-    // DEBUG
+    // CONTAINER CLICK
     // =========================
 
-    useEffect(() => {
+    function handlePlayerClick(event) {
 
-        console.log(
-            "[PLAYER STATE]",
-            {
-                isPlaying,
-                currentTime,
-                duration,
-                volume,
-                isMuted,
-                isFullscreen
-            }
-        );
+        if (
+            event.target.closest(
+                "button, input"
+            )
+        ) {
 
-    }, [
-        isPlaying,
-        currentTime,
-        duration,
-        volume,
-        isMuted,
-        isFullscreen
-    ]);
+            return;
+
+        }
+
+
+        handleTogglePlay();
+
+    }
 
 
     return (
 
         <div
             ref={playerRef}
+
             className={`${styles.player} ${
                 isFullscreen
                     ? styles.fullscreen
                     : ""
+            } ${
+                showControls
+                    ? styles.controlsVisible
+                    : styles.controlsHidden
             }`}
+
+            onMouseMove={
+                showPlayerControls
+            }
+
+            onMouseEnter={
+                showPlayerControls
+            }
+
+            onMouseLeave={
+                scheduleControlsHide
+            }
+
+            onClick={
+                handlePlayerClick
+            }
         >
 
             {/* =========================
@@ -455,9 +734,13 @@ function VideoPlayer({ src }) {
 
                 onTimeUpdate={handleTimeUpdate}
 
-                onLoadedMetadata={handleLoadedMetadata}
+                onLoadedMetadata={
+                    handleLoadedMetadata
+                }
 
-                onError={handleVideoError}
+                onError={
+                    handleVideoError
+                }
             />
 
 
@@ -467,9 +750,17 @@ function VideoPlayer({ src }) {
 
             {hasError && (
 
-                <div className={styles.errorOverlay}>
+                <div
+                    className={
+                        styles.errorOverlay
+                    }
+                >
 
-                    <span className={styles.errorIcon}>
+                    <span
+                        className={
+                            styles.errorIcon
+                        }
+                    >
                         ⚠️
                     </span>
 
@@ -480,8 +771,9 @@ function VideoPlayer({ src }) {
 
 
                     <p>
-                        Verifique se o link aponta diretamente
-                        para um arquivo de vídeo compatível.
+                        Verifique se o link aponta
+                        diretamente para um arquivo
+                        de vídeo compatível.
                     </p>
 
                 </div>
@@ -494,15 +786,34 @@ function VideoPlayer({ src }) {
                 <>
 
                     {/* =========================
+                        GRADIENTE
+                    ========================= */}
+
+                    <div
+                        className={
+                            styles.bottomGradient
+                        }
+                    />
+
+
+                    {/* =========================
                         BOTÃO CENTRAL
                     ========================= */}
 
                     <button
                         type="button"
 
-                        className={styles.playButton}
+                        className={
+                            styles.playButton
+                        }
 
-                        onClick={handleTogglePlay}
+                        onClick={(event) => {
+
+                            event.stopPropagation();
+
+                            handleTogglePlay();
+
+                        }}
 
                         aria-label={
                             isPlaying
@@ -523,17 +834,30 @@ function VideoPlayer({ src }) {
                         CONTROLES
                     ========================= */}
 
-                    <div className={styles.controls}>
+                    <div
+                        className={
+                            styles.controls
+                        }
 
+                        onClick={(event) => {
+
+                            event.stopPropagation();
+
+                        }}
+                    >
 
                         {/* PLAY / PAUSE */}
 
                         <button
                             type="button"
 
-                            className={styles.controlButton}
+                            className={
+                                styles.controlButton
+                            }
 
-                            onClick={handleTogglePlay}
+                            onClick={
+                                handleTogglePlay
+                            }
 
                             aria-label={
                                 isPlaying
@@ -550,10 +874,16 @@ function VideoPlayer({ src }) {
                         </button>
 
 
-                        {/* TEMPO */}
+                        {/* TEMPO ATUAL */}
 
-                        <span className={styles.time}>
-                            {formatTime(currentTime)}
+                        <span
+                            className={
+                                styles.time
+                            }
+                        >
+                            {formatTime(
+                                currentTime
+                            )}
                         </span>
 
 
@@ -562,17 +892,25 @@ function VideoPlayer({ src }) {
                         <input
                             type="range"
 
-                            className={styles.progress}
+                            className={
+                                styles.progress
+                            }
 
                             min="0"
 
-                            max={duration || 0}
+                            max={
+                                duration || 0
+                            }
 
                             step="0.1"
 
-                            value={currentTime}
+                            value={
+                                currentTime
+                            }
 
-                            onChange={handleSeek}
+                            onChange={
+                                handleSeek
+                            }
 
                             aria-label="Progresso do vídeo"
                         />
@@ -580,8 +918,14 @@ function VideoPlayer({ src }) {
 
                         {/* DURAÇÃO */}
 
-                        <span className={styles.time}>
-                            {formatTime(duration)}
+                        <span
+                            className={
+                                styles.time
+                            }
+                        >
+                            {formatTime(
+                                duration
+                            )}
                         </span>
 
 
@@ -590,9 +934,13 @@ function VideoPlayer({ src }) {
                         <button
                             type="button"
 
-                            className={styles.controlButton}
+                            className={
+                                styles.controlButton
+                            }
 
-                            onClick={handleToggleMute}
+                            onClick={
+                                handleToggleMute
+                            }
 
                             aria-label={
                                 isMuted
@@ -614,7 +962,9 @@ function VideoPlayer({ src }) {
                         <input
                             type="range"
 
-                            className={styles.volume}
+                            className={
+                                styles.volume
+                            }
 
                             min="0"
 
@@ -628,7 +978,9 @@ function VideoPlayer({ src }) {
                                     : volume
                             }
 
-                            onChange={handleVolumeChange}
+                            onChange={
+                                handleVolumeChange
+                            }
 
                             aria-label="Volume"
                         />
@@ -639,9 +991,13 @@ function VideoPlayer({ src }) {
                         <button
                             type="button"
 
-                            className={styles.controlButton}
+                            className={
+                                styles.controlButton
+                            }
 
-                            onClick={handleToggleFullscreen}
+                            onClick={
+                                handleToggleFullscreen
+                            }
 
                             aria-label={
                                 isFullscreen
@@ -650,54 +1006,22 @@ function VideoPlayer({ src }) {
                             }
                         >
 
-                            {isFullscreen
-                                ? "⛶"
-                                : "⛶"
-                            }
+                            ⛶
 
                         </button>
 
                     </div>
 
+
+                    {/* =========================
+                        DEBUG
+                    ========================= */}
+
+                   
+
                 </>
 
             )}
-
-
-            {/* =========================
-                DEBUG
-            ========================= */}
-
-            <div className={styles.debug}>
-
-                <span>
-                    {isPlaying
-                        ? "▶ Reproduzindo"
-                        : "⏸ Pausado"
-                    }
-                </span>
-
-
-                <span>
-                    {formatTime(currentTime)}
-                    {" / "}
-                    {formatTime(duration)}
-                </span>
-
-
-                <span>
-                    🔊 {Math.round(volume * 100)}%
-                </span>
-
-
-                <span>
-                    {isFullscreen
-                        ? "⛶ Fullscreen"
-                        : "▣ Normal"
-                    }
-                </span>
-
-            </div>
 
         </div>
 
@@ -710,9 +1034,15 @@ function VideoPlayer({ src }) {
 // ÍCONE DE VOLUME
 // =========================
 
-function getVolumeIcon(volume, isMuted) {
+function getVolumeIcon(
+    volume,
+    isMuted
+) {
 
-    if (isMuted || volume === 0) {
+    if (
+        isMuted ||
+        volume === 0
+    ) {
 
         return "🔇";
 
@@ -748,7 +1078,9 @@ function formatTime(seconds) {
 
 
     const hours =
-        Math.floor(seconds / 3600);
+        Math.floor(
+            seconds / 3600
+        );
 
 
     const minutes =
@@ -758,7 +1090,9 @@ function formatTime(seconds) {
 
 
     const remainingSeconds =
-        Math.floor(seconds % 60);
+        Math.floor(
+            seconds % 60
+        );
 
 
     if (hours > 0) {

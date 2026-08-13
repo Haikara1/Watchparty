@@ -24,6 +24,11 @@ function WatchRoom() {
 
     const [isLoading, setIsLoading] = useState(true);
 
+    const [playbackState, setPlaybackState] = useState({
+        isPlaying: false,
+        currentTime: 0
+    });
+
 
     useEffect(() => {
 
@@ -36,6 +41,40 @@ function WatchRoom() {
         setIsLoading(false);
 
     }, [roomId]);
+
+    function handlePlaybackPlay(state) {
+
+        setPlaybackState((previous) => ({
+            ...previous,
+
+            isPlaying: true,
+
+            currentTime: state.currentTime
+        }));
+
+    }
+
+    function handlePlaybackPause(state) {
+
+        setPlaybackState((previous) => ({
+            ...previous,
+
+            isPlaying: false,
+
+            currentTime: state.currentTime
+        }));
+
+    }
+
+    function handlePlaybackSeek(state) {
+
+        setPlaybackState((previous) => ({
+            ...previous,
+
+            currentTime: state.currentTime
+        }));
+
+    }
 
 
     function handleGoHome() {
@@ -174,7 +213,39 @@ function WatchRoom() {
 
                     <VideoPlayer
                         src={room.contentUrl}
+
+                        onPlay={handlePlaybackPlay}
+
+                        onPause={handlePlaybackPause}
+
+                        onSeek={handlePlaybackSeek}
                     />
+
+                    <div
+                        style={{
+                            position: "absolute",
+                            left: "12px",
+                            top: "12px",
+                            zIndex: 20,
+                            padding: "6px 10px",
+                            borderRadius: "8px",
+                            background: "rgba(0, 0, 0, 0.7)",
+                            color: "#fff",
+                            fontSize: "11px",
+                            pointerEvents: "none"
+                        }}
+                    >
+                        {playbackState.isPlaying
+                            ? "▶ Reproduzindo"
+                            : "⏸ Pausado"
+                        }
+
+                        {" • "}
+
+                        {Math.floor(
+                            playbackState.currentTime
+                        )}s
+                    </div>
 
 
                 </section>
