@@ -8,11 +8,17 @@ export function getRooms() {
         const storedRooms =
             localStorage.getItem(ROOMS_STORAGE_KEY);
 
+
         if (!storedRooms) {
+
             return [];
+
         }
 
-        const rooms = JSON.parse(storedRooms);
+
+        const rooms =
+            JSON.parse(storedRooms);
+
 
         return Array.isArray(rooms)
             ? rooms
@@ -26,6 +32,7 @@ export function getRooms() {
         );
 
         return [];
+
     }
 
 }
@@ -54,18 +61,25 @@ export function saveRooms(rooms) {
 
 export function saveRoom(room) {
 
-    const rooms = getRooms();
+    const rooms =
+        getRooms();
+
 
     const updatedRooms = [
         ...rooms,
         room
     ];
 
-    saveRooms(updatedRooms);
+
+    saveRooms(
+        updatedRooms
+    );
+
 
     return room;
 
 }
+
 
 export function generateRoomId() {
 
@@ -73,12 +87,88 @@ export function generateRoomId() {
 
 }
 
+
 export function getRoomById(roomId) {
 
-    const rooms = getRooms();
+    const rooms =
+        getRooms();
+
 
     return rooms.find(
         (room) => room.id === roomId
     ) || null;
+
+}
+
+
+export function updateRoomPlayback(
+    roomId,
+    playback
+) {
+
+    const rooms =
+        getRooms();
+
+
+    const roomExists =
+        rooms.some(
+            (room) =>
+                room.id === roomId
+        );
+
+
+    if (!roomExists) {
+
+        return null;
+
+    }
+
+
+    const updatedRooms =
+        rooms.map(
+            (room) => {
+
+                if (
+                    room.id !== roomId
+                ) {
+
+                    return room;
+
+                }
+
+
+                return {
+
+                    ...room,
+
+                    playback: {
+
+                        isPlaying:
+                            Boolean(
+                                playback.isPlaying
+                            ),
+
+                        currentTime:
+                            Number(
+                                playback.currentTime
+                            ) || 0
+
+                    }
+
+                };
+
+            }
+        );
+
+
+    saveRooms(
+        updatedRooms
+    );
+
+
+    return updatedRooms.find(
+        (room) =>
+            room.id === roomId
+    );
 
 }

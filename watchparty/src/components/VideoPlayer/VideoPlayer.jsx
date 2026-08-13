@@ -3,13 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import styles from "./VideoPlayer.module.css";
 
 
-function VideoPlayer({ src, onPlay, onPause, onSeek }) {
+function VideoPlayer({ src, playback, onPlay, onPause, onSeek }) {
 
     const playerRef = useRef(null);
 
     const videoRef = useRef(null);
 
     const controlsTimeoutRef = useRef(null);
+
+    const playbackAppliedRef = useRef(false);
 
 
     // =========================
@@ -351,8 +353,77 @@ function VideoPlayer({ src, onPlay, onPause, onSeek }) {
         );
 
 
+        // =========================
+        // APLICAR PLAYBACK SALVO
+        // =========================
+
+        if (
+            playbackAppliedRef.current
+        ) {
+
+            return;
+
+        }
+
+
+        const savedTime =
+            Number(
+                playback?.currentTime
+            );
+
+
+        const savedIsPlaying =
+            Boolean(
+                playback?.isPlaying
+            );
+
+
+        if (
+            Number.isFinite(savedTime) &&
+            savedTime >= 0 &&
+            savedTime <= video.duration
+        ) {
+
+            video.currentTime =
+                savedTime;
+
+            setCurrentTime(
+                savedTime
+            );
+
+        }
+
+
+        playbackAppliedRef.current =
+            true;
+
+
+        // =========================
+        // RESTAURAR PLAY / PAUSE
+        // =========================
+
+        if (savedIsPlaying) {
+
+            video
+                .play()
+                .catch((error) => {
+
+                    console.warn(
+                        "Autoplay bloqueado pelo navegador:",
+                        error
+                    );
+
+                });
+
+        }
 
     }
+
+    useEffect(() => {
+
+        playbackAppliedRef.current = false;
+
+    }, [src]);
 
 
     // =========================
@@ -1017,7 +1088,7 @@ function VideoPlayer({ src, onPlay, onPause, onSeek }) {
                         DEBUG
                     ========================= */}
 
-                   
+
 
                 </>
 

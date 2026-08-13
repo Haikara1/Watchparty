@@ -6,8 +6,14 @@ import {
 } from "react-router-dom";
 
 import {
-    getRoomById
+    getRoomById,
+    updateRoomPlayback
 } from "../../services/roomStorage";
+
+import playbackService from "../../services/playbackService";
+
+import realtimeService from "../../services/realtimeService";
+
 
 import styles from "./WatchRoom.module.css";
 import VideoPlayer from "../../components/VideoPlayer/VideoPlayer";
@@ -36,43 +42,188 @@ function WatchRoom() {
             getRoomById(roomId);
 
 
-        setRoom(foundRoom);
+        if (foundRoom) {
+
+            setRoom(
+                foundRoom
+            );
+
+
+            setPlaybackState({
+
+                isPlaying:
+                    foundRoom.playback
+                        ?.isPlaying
+                    ?? false,
+
+                currentTime:
+                    foundRoom.playback
+                        ?.currentTime
+                    ?? 0
+
+            });
+
+        } else {
+
+            setRoom(null);
+
+        }
+
 
         setIsLoading(false);
 
     }, [roomId]);
 
+    useEffect(() => {
+
+        if (!roomId) {
+
+            return;
+
+        }
+
+
+        const channel =
+            realtimeService.createRoomChannel(
+                roomId
+            );
+
+
+        realtimeService
+            .connect(channel)
+            .then(() => {
+
+                console.log(
+                    "[Realtime] Canal conectado:",
+                    roomId
+                );
+
+            })
+            .catch((error) => {
+
+                console.error(
+                    "[Realtime] Erro ao conectar:",
+                    error
+                );
+
+            });
+
+
+        return () => {
+
+            realtimeService.disconnect(
+                channel
+            );
+
+        };
+
+    }, [roomId]);
+
     function handlePlaybackPlay(state) {
 
-        setPlaybackState((previous) => ({
-            ...previous,
+        const event =
+            playbackService.createPlayEvent(
+                state.currentTime
+            );
+
+
+        const newPlaybackState = {
 
             isPlaying: true,
 
-            currentTime: state.currentTime
-        }));
+            currentTime:
+                state.currentTime
+
+        };
+
+
+        setPlaybackState(
+            newPlaybackState
+        );
+
+
+        updateRoomPlayback(
+            roomId,
+            newPlaybackState
+        );
+
+
+        console.log(
+            "Playback salvo:",
+            event
+        );
 
     }
 
     function handlePlaybackPause(state) {
 
-        setPlaybackState((previous) => ({
-            ...previous,
+        const event =
+            playbackService.createPauseEvent(
+                state.currentTime
+            );
+
+
+        const newPlaybackState = {
 
             isPlaying: false,
 
-            currentTime: state.currentTime
-        }));
+            currentTime:
+                state.currentTime
+
+        };
+
+
+        setPlaybackState(
+            newPlaybackState
+        );
+
+
+        updateRoomPlayback(
+            roomId,
+            newPlaybackState
+        );
+
+
+        console.log(
+            "Playback salvo:",
+            event
+        );
 
     }
 
     function handlePlaybackSeek(state) {
 
-        setPlaybackState((previous) => ({
-            ...previous,
+        const event =
+            playbackService.createSeekEvent(
+                state.currentTime
+            );
 
-            currentTime: state.currentTime
-        }));
+
+        const newPlaybackState = {
+
+            ...playbackState,
+
+            currentTime:
+                state.currentTime
+
+        };
+
+
+        setPlaybackState(
+            newPlaybackState
+        );
+
+
+        updateRoomPlayback(
+            roomId,
+            newPlaybackState
+        );
+
+
+        console.log(
+            "Playback salvo:",
+            event
+        );
 
     }
 
@@ -213,6 +364,8 @@ function WatchRoom() {
 
                     <VideoPlayer
                         src={room.contentUrl}
+
+                        playback={playbackState}
 
                         onPlay={handlePlaybackPlay}
 
