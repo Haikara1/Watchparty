@@ -56,6 +56,39 @@ function WatchRoom() {
 
     /*
     ============================================================
+    REFERÊNCIA DO PLAYBACK
+    ============================================================
+    */
+
+    const playbackStateRef = useRef({
+
+        isPlaying: false,
+
+        currentTime: 0
+
+    });
+
+
+    /*
+    ============================================================
+    ATUALIZAR PLAYBACK
+    ============================================================
+    */
+
+    function updatePlaybackState(newState) {
+
+        playbackStateRef.current =
+            newState;
+
+        setPlaybackState(
+            newState
+        );
+
+    }
+
+
+    /*
+    ============================================================
     CHAT
     ============================================================
     */
@@ -111,6 +144,9 @@ function WatchRoom() {
 
     useEffect(() => {
 
+        setIsLoading(true);
+
+
         const foundRoom =
             getRoomById(roomId);
 
@@ -120,21 +156,54 @@ function WatchRoom() {
             setRoom(foundRoom);
 
 
-            setPlaybackState({
+            /*
+            ====================================================
+            RECUPERAR PLAYBACK SALVO
+            ====================================================
+            */
+
+            const savedPlayback =
+                foundRoom.playback;
+
+
+            const savedCurrentTime =
+                Number(
+                    savedPlayback?.currentTime
+                );
+
+
+            const initialPlayback = {
 
                 isPlaying:
-                    foundRoom.playback?.isPlaying
-                    ?? false,
+                    savedPlayback?.isPlaying === true,
 
                 currentTime:
-                    foundRoom.playback?.currentTime
-                    ?? 0
+                    Number.isFinite(
+                        savedCurrentTime
+                    ) &&
+                    savedCurrentTime >= 0
+                        ? savedCurrentTime
+                        : 0
 
-            });
+            };
+
+
+            updatePlaybackState(
+                initialPlayback
+            );
 
         } else {
 
             setRoom(null);
+
+
+            updatePlaybackState({
+
+                isPlaying: false,
+
+                currentTime: 0
+
+            });
 
         }
 
@@ -195,10 +264,41 @@ function WatchRoom() {
                 }
 
 
+                if (!event) {
+
+                    return;
+
+                }
+
+
                 console.log(
                     "[Realtime] Playback recebido:",
                     event
                 );
+
+
+                const currentTime =
+                    Number(
+                        event.currentTime
+                    );
+
+
+                if (
+                    !Number.isFinite(
+                        currentTime
+                    ) ||
+                    currentTime < 0
+                ) {
+
+                    console.warn(
+                        "[Realtime] currentTime inválido:",
+                        event.currentTime
+                    );
+
+
+                    return;
+
+                }
 
 
                 /*
@@ -208,24 +308,25 @@ function WatchRoom() {
                 */
 
                 if (
-                    event.action ===
-                    "play"
+                    event.action === "play"
                 ) {
 
                     console.log(
                         "[Realtime] Aplicando PLAY remoto:",
-                        event.currentTime
+                        currentTime
                     );
 
 
-                    setPlaybackState({
+                    updatePlaybackState({
 
                         isPlaying: true,
 
-                        currentTime:
-                            event.currentTime
+                        currentTime
 
                     });
+
+
+                    return;
 
                 }
 
@@ -237,24 +338,25 @@ function WatchRoom() {
                 */
 
                 if (
-                    event.action ===
-                    "pause"
+                    event.action === "pause"
                 ) {
 
                     console.log(
                         "[Realtime] Aplicando PAUSE remoto:",
-                        event.currentTime
+                        currentTime
                     );
 
 
-                    setPlaybackState({
+                    updatePlaybackState({
 
                         isPlaying: false,
 
-                        currentTime:
-                            event.currentTime
+                        currentTime
 
                     });
+
+
+                    return;
 
                 }
 
@@ -266,28 +368,33 @@ function WatchRoom() {
                 */
 
                 if (
-                    event.action ===
-                    "seek"
+                    event.action === "seek"
                 ) {
 
                     console.log(
                         "[Realtime] Aplicando SEEK remoto:",
-                        event.currentTime
+                        currentTime
                     );
 
 
-                    setPlaybackState(
-                        previous => ({
+                    updatePlaybackState({
 
-                            ...previous,
+                        ...playbackStateRef.current,
 
-                            currentTime:
-                                event.currentTime
+                        currentTime
 
-                        })
-                    );
+                    });
+
+
+                    return;
 
                 }
+
+
+                console.warn(
+                    "[Realtime] Ação de playback desconhecida:",
+                    event.action
+                );
 
             }
         );
@@ -304,6 +411,13 @@ function WatchRoom() {
             (message) => {
 
                 if (!isActive) {
+
+                    return;
+
+                }
+
+
+                if (!message) {
 
                     return;
 
@@ -369,17 +483,11 @@ function WatchRoom() {
                 );
 
 
-                /*
-                ==================================================
-                TRANSFORMAR PRESENCE EM LISTA
-                ==================================================
-                */
-
                 const users = [];
 
 
                 Object.entries(
-                    state
+                    state || {}
                 ).forEach(
                     ([key, entries]) => {
 
@@ -396,6 +504,13 @@ function WatchRoom() {
 
                         entries.forEach(
                             (user) => {
+
+                                if (!user) {
+
+                                    return;
+
+                                }
+
 
                                 users.push({
 
@@ -548,7 +663,6 @@ function WatchRoom() {
 
             setParticipants([]);
 
-
             setShowParticipants(false);
 
 
@@ -556,6 +670,12 @@ function WatchRoom() {
                 channelRef.current ===
                 channel
             ) {
+
+                console.log(
+                    "[Realtime] Desconectando canal:",
+                    roomId
+                );
+
 
                 realtimeService.disconnect(
                     channel
@@ -580,9 +700,27 @@ function WatchRoom() {
 
     async function handlePlaybackPlay(state) {
 
+        const currentTime =
+            Number(
+                state?.currentTime
+            );
+
+
+        if (
+            !Number.isFinite(
+                currentTime
+            ) ||
+            currentTime < 0
+        ) {
+
+            return;
+
+        }
+
+
         const event =
             playbackService.createPlayEvent(
-                state.currentTime
+                currentTime
             );
 
 
@@ -590,16 +728,27 @@ function WatchRoom() {
 
             isPlaying: true,
 
-            currentTime:
-                state.currentTime
+            currentTime
 
         };
 
 
-        setPlaybackState(
+        /*
+        ========================================================
+        ATUALIZAR ESTADO LOCAL
+        ========================================================
+        */
+
+        updatePlaybackState(
             newPlaybackState
         );
 
+
+        /*
+        ========================================================
+        SALVAR NO LOCALSTORAGE
+        ========================================================
+        */
 
         updateRoomPlayback(
             roomId,
@@ -612,6 +761,12 @@ function WatchRoom() {
             event
         );
 
+
+        /*
+        ========================================================
+        ENVIAR PARA REALTIME
+        ========================================================
+        */
 
         const activeChannel =
             channelRef.current;
@@ -675,9 +830,27 @@ function WatchRoom() {
 
     async function handlePlaybackPause(state) {
 
+        const currentTime =
+            Number(
+                state?.currentTime
+            );
+
+
+        if (
+            !Number.isFinite(
+                currentTime
+            ) ||
+            currentTime < 0
+        ) {
+
+            return;
+
+        }
+
+
         const event =
             playbackService.createPauseEvent(
-                state.currentTime
+                currentTime
             );
 
 
@@ -685,16 +858,27 @@ function WatchRoom() {
 
             isPlaying: false,
 
-            currentTime:
-                state.currentTime
+            currentTime
 
         };
 
 
-        setPlaybackState(
+        /*
+        ========================================================
+        ATUALIZAR ESTADO LOCAL
+        ========================================================
+        */
+
+        updatePlaybackState(
             newPlaybackState
         );
 
+
+        /*
+        ========================================================
+        SALVAR NO LOCALSTORAGE
+        ========================================================
+        */
 
         updateRoomPlayback(
             roomId,
@@ -707,6 +891,12 @@ function WatchRoom() {
             event
         );
 
+
+        /*
+        ========================================================
+        ENVIAR PARA REALTIME
+        ========================================================
+        */
 
         const activeChannel =
             channelRef.current;
@@ -764,26 +954,65 @@ function WatchRoom() {
 
     async function handlePlaybackSeek(state) {
 
+        const currentTime =
+            Number(
+                state?.currentTime
+            );
+
+
+        if (
+            !Number.isFinite(
+                currentTime
+            ) ||
+            currentTime < 0
+        ) {
+
+            return;
+
+        }
+
+
         const event =
             playbackService.createSeekEvent(
-                state.currentTime
+                currentTime
             );
+
+
+        /*
+        ========================================================
+        PEGAR ESTADO MAIS RECENTE
+        ========================================================
+        */
+
+        const currentPlayback =
+            playbackStateRef.current;
 
 
         const newPlaybackState = {
 
-            ...playbackState,
+            ...currentPlayback,
 
-            currentTime:
-                state.currentTime
+            currentTime
 
         };
 
 
-        setPlaybackState(
+        /*
+        ========================================================
+        ATUALIZAR ESTADO LOCAL
+        ========================================================
+        */
+
+        updatePlaybackState(
             newPlaybackState
         );
 
+
+        /*
+        ========================================================
+        SALVAR PLAYBACK
+        ========================================================
+        */
 
         updateRoomPlayback(
             roomId,
@@ -796,6 +1025,12 @@ function WatchRoom() {
             event
         );
 
+
+        /*
+        ========================================================
+        ENVIAR PARA REALTIME
+        ========================================================
+        */
 
         const activeChannel =
             channelRef.current;
@@ -1171,7 +1406,7 @@ function WatchRoom() {
 
                 {/* ==================================================
                     PLAYER
-                    ================================================== */}
+                ================================================== */}
 
                 <section
                     className={
@@ -1235,7 +1470,7 @@ function WatchRoom() {
 
                 {/* ==================================================
                     CHAT
-                    ================================================== */}
+                ================================================== */}
 
                 <aside
                     className={
@@ -1357,7 +1592,7 @@ function WatchRoom() {
 
                     {/* ==================================================
                         CONTEÚDO DO CHAT / PARTICIPANTES
-                        ================================================== */}
+                    ================================================== */}
 
                     {showParticipants ? (
 
@@ -1574,7 +1809,7 @@ function WatchRoom() {
 
                     {/* ==================================================
                         FORMULÁRIO DO CHAT
-                        ================================================== */}
+                    ================================================== */}
 
                     {!showParticipants && (
 
@@ -1668,3 +1903,4 @@ function formatMessageTime(timestamp) {
 
 
 export default WatchRoom;
+

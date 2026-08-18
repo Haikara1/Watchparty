@@ -1,0 +1,232 @@
+.page {
+    min-height: calc(100vh - 140px);
+
+    /*
+    ============================================================
+    ESPAÇO PARA O HEADER GLOBAL
+    ============================================================
+    */
+
+    padding: 110px 20px 80px;
+}
+
+
+.container {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+
+.backButton {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    border: none;
+
+    background: transparent;
+
+    color: #aaa;
+
+    font-size: 14px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    padding: 8px 0;
+
+    transition:
+        color 0.2s ease,
+        transform 0.2s ease;
+}
+
+
+.backButton:hover {
+
+    color: #fff;
+
+    transform: translateX(-3px);
+
+}
+
+
+/*
+============================================================
+HEADER DA PÁGINA
+============================================================
+*/
+
+.header {
+
+    display: flex;
+
+    align-items: flex-start;
+
+    justify-content: space-between;
+
+    gap: 30px;
+
+    margin-bottom: 36px;
+
+}
+
+
+.eyebrow {
+
+    display: inline-block;
+
+    margin-bottom: 10px;
+
+    font-size: 12px;
+
+    font-weight: 700;
+
+    letter-spacing: 2px;
+
+    color: #8b5cf6;
+
+}
+
+
+.header h1 {
+
+    margin: 0;
+
+    font-size: clamp(32px, 5vw, 48px);
+
+    line-height: 1.1;
+
+    color: #fff;
+
+}
+
+
+.header p {
+
+    margin: 14px 0 0;
+
+    max-width: 600px;
+
+    color: #999;
+
+    font-size: 16px;
+
+    line-height: 1.6;
+
+}
+
+
+/*
+============================================================
+BOTÃO CRIAR SALA
+============================================================
+*/
+
+.createButton {
+
+    flex-shrink: 0;
+
+}
+
+
+/*
+============================================================
+CONTEÚDO
+============================================================
+*/
+
+.content {
+
+    width: 100%;
+
+}
+
+
+/*
+============================================================
+FORM WRAPPER
+============================================================
+*/
+
+.formWrapper {
+
+    width: 100%;
+
+    padding: 30px;
+
+    border: 1px solid rgba(255, 255, 255, 0.08);
+
+    border-radius: 20px;
+
+    background:
+        rgba(255, 255, 255, 0.025);
+
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+
+/*
+============================================================
+RESPONSIVO
+============================================================
+*/
+
+@media (max-width: 600px) {
+
+    .page {
+
+        padding:
+            90px 16px 60px;
+
+    }
+
+
+    .header {
+
+        flex-direction: column;
+
+        align-items: stretch;
+
+        gap: 20px;
+
+        margin-bottom: 28px;
+
+    }
+
+
+    .header h1 {
+
+        font-size: 32px;
+
+    }
+
+
+    .header p {
+
+        font-size: 14px;
+
+    }
+
+
+    .createButton {
+
+        width: 100%;
+
+    }
+
+
+    .formWrapper {
+
+        padding: 20px 16px;
+
+        border-radius: 16px;
+
+    }
+
+}
+

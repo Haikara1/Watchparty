@@ -51,6 +51,611 @@ console.log(
 
 /*
 ============================================================
+CONFIGURAÇÕES DO REALTIME
+============================================================
+*/
+
+const RECONNECT_INITIAL_DELAY = 2000;
+
+const RECONNECT_MAX_DELAY = 10000;
+
+
+/*
+============================================================
+CONTROLE INTERNO DOS CANAIS
+============================================================
+*/
+
+/*
+    WeakMap evita manter referências de canais
+    que já foram destruídos.
+*/
+
+const channelControllers =
+    new WeakMap();
+
+
+/*
+============================================================
+CRIAR CONTROLADOR INTERNO
+============================================================
+*/
+
+function getChannelController(channel) {
+
+    if (!channel) {
+
+        return null;
+
+    }
+
+
+    let controller =
+        channelControllers.get(channel);
+
+
+    if (!controller) {
+
+        controller = {
+
+            isActive: true,
+
+            isConnected: false,
+
+            isConnecting: false,
+
+            reconnectTimer: null,
+
+            reconnectAttempts: 0,
+
+            connectPromise: null
+
+        };
+
+
+        channelControllers.set(
+            channel,
+            controller
+        );
+
+    }
+
+
+    return controller;
+
+}
+
+
+/*
+============================================================
+LIMPAR TIMER DE RECONEXÃO
+============================================================
+*/
+
+function clearReconnectTimer(
+    controller
+) {
+
+    if (
+        !controller ||
+        !controller.reconnectTimer
+    ) {
+
+        return;
+
+    }
+
+
+    clearTimeout(
+        controller.reconnectTimer
+    );
+
+
+    controller.reconnectTimer =
+        null;
+
+}
+
+
+/*
+============================================================
+CALCULAR DELAY DE RECONEXÃO
+============================================================
+*/
+
+function getReconnectDelay(
+    controller
+) {
+
+    if (!controller) {
+
+        return RECONNECT_INITIAL_DELAY;
+
+    }
+
+
+    const delay =
+        RECONNECT_INITIAL_DELAY *
+        Math.pow(
+            2,
+            controller.reconnectAttempts
+        );
+
+
+    return Math.min(
+        delay,
+        RECONNECT_MAX_DELAY
+    );
+
+}
+
+
+/*
+============================================================
+AGENDAR RECONEXÃO
+============================================================
+*/
+
+function scheduleReconnect(
+    channel
+) {
+
+    const controller =
+        getChannelController(
+            channel
+        );
+
+
+    if (!controller) {
+
+        return;
+
+    }
+
+
+    if (
+        !controller.isActive
+    ) {
+
+        return;
+
+    }
+
+
+    if (
+        controller.isConnected
+    ) {
+
+        return;
+
+    }
+
+
+    if (
+        controller.reconnectTimer
+    ) {
+
+        return;
+
+    }
+
+
+    const delay =
+        getReconnectDelay(
+            controller
+        );
+
+
+    controller.reconnectAttempts += 1;
+
+
+    console.warn(
+        `[Realtime] Reconexão agendada em ${delay}ms. Tentativa ${controller.reconnectAttempts}.`
+    );
+
+
+    controller.reconnectTimer =
+        setTimeout(
+            async () => {
+
+                controller.reconnectTimer =
+                    null;
+
+
+                if (
+                    !controller.isActive
+                ) {
+
+                    return;
+
+                }
+
+
+                console.log(
+                    "[Realtime] Tentando reconectar canal..."
+                );
+
+
+                try {
+
+                    await subscribeChannel(
+                        channel,
+                        controller
+                    );
+
+
+                    console.log(
+                        "[Realtime] Reconexão concluída com sucesso."
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "[Realtime] Falha na reconexão:",
+                        error
+                    );
+
+
+                    scheduleReconnect(
+                        channel
+                    );
+
+                }
+
+            },
+            delay
+        );
+
+}
+
+
+/*
+============================================================
+SUBSCREVER CANAL
+============================================================
+*/
+
+function subscribeChannel(
+    channel,
+    controller
+) {
+
+    if (!channel) {
+
+        return Promise.reject(
+            new Error(
+                "Canal Supabase é obrigatório."
+            )
+        );
+
+    }
+
+
+    if (!controller) {
+
+        return Promise.reject(
+            new Error(
+                "Controlador do canal não encontrado."
+            )
+        );
+
+    }
+
+
+    if (
+        !controller.isActive
+    ) {
+
+        return Promise.reject(
+            new Error(
+                "Canal não está ativo."
+            )
+        );
+
+    }
+
+
+    if (
+        channel.state === "joined"
+        &&
+        controller.isConnected
+    ) {
+
+        return Promise.resolve(
+            channel
+        );
+
+    }
+
+
+    if (
+        controller.isConnecting &&
+        controller.connectPromise
+    ) {
+
+        return controller.connectPromise;
+
+    }
+
+
+    controller.isConnecting =
+        true;
+
+
+    controller.connectPromise =
+        new Promise(
+            (resolve, reject) => {
+
+                let settled =
+                    false;
+
+
+                const finishSuccess =
+                    () => {
+
+                        if (
+                            settled
+                        ) {
+
+                            return;
+
+                        }
+
+
+                        settled =
+                            true;
+
+
+                        controller.isConnected =
+                            true;
+
+
+                        controller.isConnecting =
+                            false;
+
+
+                        controller.reconnectAttempts =
+                            0;
+
+
+                        clearReconnectTimer(
+                            controller
+                        );
+
+
+                        console.log(
+                            "[Realtime] Canal inscrito com sucesso."
+                        );
+
+
+                        resolve(
+                            channel
+                        );
+
+                    };
+
+
+                const finishError =
+                    (error) => {
+
+                        if (
+                            settled
+                        ) {
+
+                            return;
+
+                        }
+
+
+                        settled =
+                            true;
+
+
+                        controller.isConnected =
+                            false;
+
+
+                        controller.isConnecting =
+                            false;
+
+
+                        reject(
+                            error
+                        );
+
+                    };
+
+
+                try {
+
+                    channel.subscribe(
+                        (status) => {
+
+                            console.log(
+                                "[Realtime] Status:",
+                                status
+                            );
+
+
+                            console.log(
+                                "[Realtime] Estado interno:",
+                                channel.state
+                            );
+
+
+                            /*
+                            ==================================
+                            CONECTADO
+                            ==================================
+                            */
+
+                            if (
+                                status ===
+                                "SUBSCRIBED"
+                            ) {
+
+                                finishSuccess();
+
+                                return;
+
+                            }
+
+
+                            /*
+                            ==================================
+                            ERRO DO CANAL
+                            ==================================
+                            */
+
+                            if (
+                                status ===
+                                "CHANNEL_ERROR"
+                            ) {
+
+                                controller.isConnected =
+                                    false;
+
+
+                                console.error(
+                                    "[Realtime] Falha no canal: CHANNEL_ERROR"
+                                );
+
+
+                                finishError(
+                                    new Error(
+                                        "Falha no Realtime: CHANNEL_ERROR"
+                                    )
+                                );
+
+
+                                scheduleReconnect(
+                                    channel
+                                );
+
+
+                                return;
+
+                            }
+
+
+                            /*
+                            ==================================
+                            TIMEOUT
+                            ==================================
+                            */
+
+                            if (
+                                status ===
+                                "TIMED_OUT"
+                            ) {
+
+                                controller.isConnected =
+                                    false;
+
+
+                                console.error(
+                                    "[Realtime] Falha no canal: TIMED_OUT"
+                                );
+
+
+                                finishError(
+                                    new Error(
+                                        "Falha no Realtime: TIMED_OUT"
+                                    )
+                                );
+
+
+                                scheduleReconnect(
+                                    channel
+                                );
+
+
+                                return;
+
+                            }
+
+
+                            /*
+                            ==================================
+                            CANAL FECHADO
+                            ==================================
+                            */
+
+                            if (
+                                status ===
+                                "CLOSED"
+                            ) {
+
+                                controller.isConnected =
+                                    false;
+
+
+                                console.log(
+                                    "[Realtime] Canal fechado."
+                                );
+
+
+                                /*
+                                    CLOSED durante cleanup
+                                    não deve gerar reconexão.
+                                */
+
+                                if (
+                                    controller.isActive
+                                ) {
+
+                                    scheduleReconnect(
+                                        channel
+                                    );
+
+                                }
+
+                            }
+
+                        }
+                    );
+
+                } catch (error) {
+
+                    finishError(
+                        error
+                    );
+
+
+                    scheduleReconnect(
+                        channel
+                    );
+
+                }
+
+            }
+        );
+
+
+    /*
+    ========================================================
+    FINALIZAR PROMISE INTERNA
+    ========================================================
+    */
+
+    controller.connectPromise
+        .finally(
+            () => {
+
+                controller.connectPromise =
+                    null;
+
+            }
+        );
+
+
+    return controller.connectPromise;
+
+}
+
+
+/*
+============================================================
 REALTIME SERVICE
 ============================================================
 */
@@ -81,6 +686,17 @@ const realtimeService = {
             );
 
 
+        /*
+        ====================================================
+        CRIAR CONTROLADOR DO CANAL
+        ====================================================
+        */
+
+        getChannelController(
+            channel
+        );
+
+
         console.log(
             "[Realtime] Canal criado:",
             roomId
@@ -109,80 +725,90 @@ const realtimeService = {
         }
 
 
-        return new Promise(
-            (resolve, reject) => {
-
-                channel.subscribe(
-                    (status) => {
-
-                        console.log(
-                            "[Realtime] Status:",
-                            status
-                        );
+        const controller =
+            getChannelController(
+                channel
+            );
 
 
-                        console.log(
-                            "[Realtime] Estado interno:",
-                            channel.state
-                        );
+        controller.isActive =
+            true;
 
 
-                        /*
-                        ====================================
-                        CONECTADO
-                        ====================================
-                        */
+        /*
+        ====================================================
+        EVITAR CONEXÃO DUPLICADA
+        ====================================================
+        */
 
-                        if (
-                            status ===
-                            "SUBSCRIBED"
-                        ) {
+        if (
+            controller.isConnected
+            &&
+            channel.state === "joined"
+        ) {
 
-                            console.log(
-                                "[Realtime] Canal inscrito com sucesso."
-                            );
-
-
-                            resolve(channel);
+            console.log(
+                "[Realtime] Canal já está conectado."
+            );
 
 
-                            return;
+            return channel;
 
-                        }
-
-
-                        /*
-                        ====================================
-                        ERROS REAIS
-                        ====================================
-                        */
-
-                        if (
-                            status ===
-                            "CHANNEL_ERROR"
-                            ||
-                            status ===
-                            "TIMED_OUT"
-                        ) {
-
-                            console.error(
-                                "[Realtime] Falha no canal:",
-                                status
-                            );
+        }
 
 
-                            reject(
-                                new Error(
-                                    `Falha no Realtime: ${status}`
-                                )
-                            );
+        console.log(
+            "[Realtime] Conectando canal..."
+        );
 
-                        }
 
-                    }
-                );
+        try {
 
-            }
+            return await subscribeChannel(
+                channel,
+                controller
+            );
+
+        } catch (error) {
+
+            console.error(
+                "[Realtime] Erro na conexão inicial:",
+                error
+            );
+
+
+            throw error;
+
+        }
+
+    },
+
+
+    /*
+    ========================================================
+    VERIFICAR SE CANAL ESTÁ DISPONÍVEL
+    ========================================================
+    */
+
+    isChannelReady(channel) {
+
+        if (!channel) {
+
+            return false;
+
+        }
+
+
+        const controller =
+            getChannelController(
+                channel
+            );
+
+
+        return Boolean(
+            controller?.isConnected
+            &&
+            channel.state === "joined"
         );
 
     },
@@ -203,13 +829,68 @@ const realtimeService = {
         }
 
 
+        const controller =
+            getChannelController(
+                channel
+            );
+
+
         console.log(
             "[Realtime] Desconectando canal."
         );
 
 
-        await supabase.removeChannel(
-            channel
+        /*
+        ====================================================
+        IMPEDIR NOVAS RECONEXÕES
+        ====================================================
+        */
+
+        controller.isActive =
+            false;
+
+
+        controller.isConnected =
+            false;
+
+
+        controller.isConnecting =
+            false;
+
+
+        clearReconnectTimer(
+            controller
+        );
+
+
+        controller.connectPromise =
+            null;
+
+
+        /*
+        ====================================================
+        REMOVER CANAL DO SUPABASE
+        ====================================================
+        */
+
+        try {
+
+            await supabase.removeChannel(
+                channel
+            );
+
+        } catch (error) {
+
+            console.error(
+                "[Realtime] Erro ao desconectar canal:",
+                error
+            );
+
+        }
+
+
+        console.log(
+            "[Realtime] Canal desconectado."
         );
 
     },
@@ -248,31 +929,61 @@ const realtimeService = {
         }
 
 
+        if (
+            !this.isChannelReady(
+                channel
+            )
+        ) {
+
+            console.warn(
+                "[Realtime] Canal não está conectado. Playback não enviado."
+            );
+
+
+            return null;
+
+        }
+
+
         console.log(
             "[Realtime] Enviando evento:",
             event
         );
 
 
-        const result =
-            await channel.send({
+        try {
 
-                type: "broadcast",
+            const result =
+                await channel.send({
 
-                event: "playback",
+                    type: "broadcast",
 
-                payload: event
+                    event: "playback",
 
-            });
+                    payload: event
 
-
-        console.log(
-            "[Realtime] Evento enviado:",
-            result
-        );
+                });
 
 
-        return result;
+            console.log(
+                "[Realtime] Evento enviado:",
+                result
+            );
+
+
+            return result;
+
+        } catch (error) {
+
+            console.error(
+                "[Realtime] Erro ao enviar evento:",
+                error
+            );
+
+
+            return null;
+
+        }
 
     },
 
@@ -388,31 +1099,61 @@ const realtimeService = {
         }
 
 
+        if (
+            !this.isChannelReady(
+                channel
+            )
+        ) {
+
+            console.warn(
+                "[Realtime] Canal não está conectado. Mensagem não enviada."
+            );
+
+
+            return null;
+
+        }
+
+
         console.log(
             "[Realtime] Enviando mensagem:",
             message
         );
 
 
-        const result =
-            await channel.send({
+        try {
 
-                type: "broadcast",
+            const result =
+                await channel.send({
 
-                event: "chat",
+                    type: "broadcast",
 
-                payload: message
+                    event: "chat",
 
-            });
+                    payload: message
 
-
-        console.log(
-            "[Realtime] Mensagem enviada:",
-            result
-        );
+                });
 
 
-        return result;
+            console.log(
+                "[Realtime] Mensagem enviada:",
+                result
+            );
+
+
+            return result;
+
+        } catch (error) {
+
+            console.error(
+                "[Realtime] Erro ao enviar mensagem:",
+                error
+            );
+
+
+            return null;
+
+        }
 
     },
 
@@ -528,25 +1269,55 @@ const realtimeService = {
         }
 
 
+        if (
+            !this.isChannelReady(
+                channel
+            )
+        ) {
+
+            console.warn(
+                "[Presence] Canal não está conectado."
+            );
+
+
+            return null;
+
+        }
+
+
         console.log(
             "[Presence] Registrando usuário:",
             user
         );
 
 
-        const result =
-            await channel.track(
-                user
+        try {
+
+            const result =
+                await channel.track(
+                    user
+                );
+
+
+            console.log(
+                "[Presence] Usuário registrado:",
+                result
             );
 
 
-        console.log(
-            "[Presence] Usuário registrado:",
-            result
-        );
+            return result;
+
+        } catch (error) {
+
+            console.error(
+                "[Presence] Erro ao registrar usuário:",
+                error
+            );
 
 
-        return result;
+            throw error;
+
+        }
 
     },
 

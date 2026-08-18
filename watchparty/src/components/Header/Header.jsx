@@ -1,35 +1,59 @@
 import { Link } from "react-router-dom";
+
 import styles from "./Header.module.css";
 
+
 function Header() {
+
     return (
+
         <header className={styles.header}>
 
-            <div className={`container ${styles.container}`}>
+            <div
+                className={`container ${styles.container}`}
+            >
+
+
+                {/* ==================================================
+                    LOGO
+                ================================================== */}
 
                 <Link
                     to="/"
                     className={styles.logo}
                 >
-                    <span className={styles.logoIcon}>
+
+                    <span
+                        className={styles.logoIcon}
+                    >
                         ▶
                     </span>
+
 
                     <span>
                         WatchParty
                     </span>
+
                 </Link>
 
 
-                <nav className={styles.navigation}>
+                {/* ==================================================
+                    NAVEGAÇÃO
+                ================================================== */}
+
+                <nav
+                    className={styles.navigation}
+                >
 
                     <Link to="/">
                         Início
                     </Link>
 
-                    <Link to="/">
+
+                    <Link to="/salas">
                         Salas
                     </Link>
+
 
                     <Link to="/">
                         Sobre
@@ -38,9 +62,18 @@ function Header() {
                 </nav>
 
 
-                <div className={styles.actions}>
+                {/* ==================================================
+                    AÇÕES
+                ================================================== */}
 
-                    <button className={styles.loginButton}>
+                <div
+                    className={styles.actions}
+                >
+
+                    <button
+                        type="button"
+                        className={styles.loginButton}
+                    >
                         Entrar
                     </button>
 
@@ -49,7 +82,11 @@ function Header() {
             </div>
 
         </header>
+
     );
+
 }
 
+
 export default Header;
+

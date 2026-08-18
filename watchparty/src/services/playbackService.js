@@ -1,39 +1,78 @@
 const playbackService = {
 
-    createPlayEvent(currentTime) {
+    /*
+    ============================================================
+    PLAY
+    ============================================================
+    */
+
+    createPlayEvent(
+        currentTime,
+        userId
+    ) {
 
         return {
+
             action: "play",
 
             currentTime,
 
+            userId,
+
             timestamp: Date.now()
+
         };
 
     },
 
 
-    createPauseEvent(currentTime) {
+    /*
+    ============================================================
+    PAUSE
+    ============================================================
+    */
+
+    createPauseEvent(
+        currentTime,
+        userId
+    ) {
 
         return {
+
             action: "pause",
 
             currentTime,
 
+            userId,
+
             timestamp: Date.now()
+
         };
 
     },
 
 
-    createSeekEvent(currentTime) {
+    /*
+    ============================================================
+    SEEK
+    ============================================================
+    */
+
+    createSeekEvent(
+        currentTime,
+        userId
+    ) {
 
         return {
+
             action: "seek",
 
             currentTime,
 
+            userId,
+
             timestamp: Date.now()
+
         };
 
     }

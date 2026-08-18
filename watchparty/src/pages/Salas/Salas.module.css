@@ -1,0 +1,552 @@
+.page {
+    min-height: 100vh;
+
+    padding: 40px;
+
+    background:
+        radial-gradient(
+            circle at top right,
+            rgba(124, 58, 237, 0.12),
+            transparent 35%
+        ),
+        #08080c;
+
+    color: #ffffff;
+}
+
+
+/*
+============================================================
+HEADER
+============================================================
+*/
+
+.header {
+    max-width: 1200px;
+
+    margin: 0 auto 40px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 30px;
+}
+
+
+.eyebrow {
+    display: block;
+
+    margin-bottom: 8px;
+
+    font-size: 12px;
+
+    font-weight: 700;
+
+    letter-spacing: 3px;
+
+    color: #8b5cf6;
+}
+
+
+.header h1 {
+    margin: 0;
+
+    font-size: clamp(
+        32px,
+        5vw,
+        48px
+    );
+
+    line-height: 1.1;
+}
+
+
+.header p {
+    margin: 12px 0 0;
+
+    color: #9ca3af;
+
+    font-size: 15px;
+
+    line-height: 1.5;
+}
+
+
+.createButton {
+    flex-shrink: 0;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    min-height: 46px;
+
+    padding: 13px 20px;
+
+    border: 0;
+
+    border-radius: 10px;
+
+    background: #7c3aed;
+
+    color: #ffffff;
+
+    font-size: 14px;
+
+    font-weight: 700;
+
+    white-space: nowrap;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease;
+}
+
+
+.createButton:hover {
+    background: #8b5cf6;
+
+    transform: translateY(-2px);
+}
+
+
+/*
+============================================================
+CONTEÚDO
+============================================================
+*/
+
+.content {
+    max-width: 1200px;
+
+    margin: 0 auto;
+}
+
+
+/*
+============================================================
+GRID
+============================================================
+*/
+
+.roomsGrid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fill,
+            minmax(
+                280px,
+                1fr
+            )
+        );
+
+    gap: 20px;
+}
+
+
+/*
+============================================================
+CARD
+============================================================
+*/
+
+.roomCard {
+    position: relative;
+
+    display: flex;
+
+    flex-direction: column;
+
+    min-height: 330px;
+
+    padding: 22px;
+
+    border: 1px solid #20202a;
+
+    border-radius: 18px;
+
+    background:
+        linear-gradient(
+            145deg,
+            #15151c,
+            #0e0e13
+        );
+
+    box-shadow:
+        0 15px 40px
+        rgba(
+            0,
+            0,
+            0,
+            0.25
+        );
+
+    transition:
+        transform 0.25s ease,
+        border-color 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+
+.roomCard:hover {
+    transform: translateY(-5px);
+
+    border-color: #6d28d9;
+
+    box-shadow:
+        0 20px 50px
+        rgba(
+            124,
+            58,
+            237,
+            0.15
+        );
+}
+
+
+/*
+============================================================
+TOPO
+============================================================
+*/
+
+.cardTop {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+}
+
+
+.roomType {
+    display: inline-flex;
+
+    align-items: center;
+
+    padding: 6px 10px;
+
+    border-radius: 999px;
+
+    font-size: 11px;
+
+    font-weight: 700;
+}
+
+
+.public {
+    background: rgba(
+        34,
+        197,
+        94,
+        0.1
+    );
+
+    color: #4ade80;
+}
+
+
+.private {
+    background: rgba(
+        245,
+        158,
+        11,
+        0.1
+    );
+
+    color: #fbbf24;
+}
+
+
+/*
+============================================================
+EXCLUIR
+============================================================
+*/
+
+.deleteButton {
+    width: 34px;
+
+    height: 34px;
+
+    border: 0;
+
+    border-radius: 8px;
+
+    background: transparent;
+
+    color: #6b7280;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        color 0.2s ease;
+}
+
+
+.deleteButton:hover {
+    background: rgba(
+        239,
+        68,
+        68,
+        0.1
+    );
+
+    color: #f87171;
+}
+
+
+/*
+============================================================
+ÍCONE
+============================================================
+*/
+
+.cardIcon {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 70px;
+
+    height: 70px;
+
+    margin-top: 25px;
+
+    border-radius: 18px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #7c3aed,
+            #4c1d95
+        );
+
+    font-size: 30px;
+
+    box-shadow:
+        0 10px 25px
+        rgba(
+            124,
+            58,
+            237,
+            0.2
+        );
+}
+
+
+/*
+============================================================
+INFORMAÇÕES
+============================================================
+*/
+
+.cardInfo {
+    flex: 1;
+
+    margin-top: 20px;
+}
+
+
+.cardInfo h2 {
+    margin: 0;
+
+    font-size: 21px;
+
+    line-height: 1.3;
+
+    word-break: break-word;
+}
+
+
+.metadata {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 7px;
+
+    margin-top: 12px;
+
+    color: #8b8b98;
+
+    font-size: 12px;
+}
+
+
+/*
+============================================================
+ENTRAR
+============================================================
+*/
+
+.enterButton {
+    width: 100%;
+
+    padding: 13px;
+
+    border: 0;
+
+    border-radius: 10px;
+
+    background: #ffffff;
+
+    color: #111111;
+
+    font-size: 14px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease;
+}
+
+
+.enterButton:hover {
+    background: #e9e9ed;
+
+    transform: translateY(-1px);
+}
+
+
+/*
+============================================================
+ESTADO VAZIO
+============================================================
+*/
+
+.empty {
+    min-height: 400px;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    text-align: center;
+
+    padding: 40px;
+
+    border: 1px dashed #292934;
+
+    border-radius: 20px;
+
+    background: rgba(
+        255,
+        255,
+        255,
+        0.015
+    );
+}
+
+
+.emptyIcon {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 80px;
+
+    height: 80px;
+
+    margin-bottom: 20px;
+
+    border-radius: 22px;
+
+    background: #171720;
+
+    font-size: 34px;
+}
+
+
+.empty h2 {
+    margin: 0;
+
+    font-size: 24px;
+}
+
+
+.empty p {
+    max-width: 420px;
+
+    margin: 10px 0 25px;
+
+    color: #8b8b98;
+
+    line-height: 1.6;
+}
+
+
+.emptyButton {
+    padding: 13px 20px;
+
+    border: 0;
+
+    border-radius: 10px;
+
+    background: #7c3aed;
+
+    color: #ffffff;
+
+    font-weight: 700;
+
+    cursor: pointer;
+}
+
+
+/*
+============================================================
+RESPONSIVO
+============================================================
+*/
+
+@media (max-width: 700px) {
+
+    .page {
+        padding: 25px 16px;
+    }
+
+
+    .header {
+        align-items: flex-start;
+
+        flex-direction: column;
+
+        margin-bottom: 30px;
+    }
+
+
+    .createButton {
+        width: 100%;
+    }
+
+
+    .roomsGrid {
+        grid-template-columns: 1fr;
+    }
+
+
+    .roomCard {
+        min-height: 310px;
+    }
+
+}
