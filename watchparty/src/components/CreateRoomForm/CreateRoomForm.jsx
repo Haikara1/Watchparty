@@ -44,7 +44,8 @@ function CreateRoomForm() {
 
         setErrors((previous) => ({
             ...previous,
-            name: ""
+            name: "",
+            submit: ""
         }));
 
     }
@@ -58,20 +59,25 @@ function CreateRoomForm() {
 
         setErrors((previous) => ({
             ...previous,
-            contentUrl: ""
+            contentUrl: "",
+            submit: ""
         }));
 
     }
 
 
-    function handleSubmit(event) {
+    async function handleSubmit(event) {
 
         event.preventDefault();
 
 
-        const trimmedName = roomName.trim();
+        const trimmedName =
+            roomName.trim();
 
-        const trimmedUrl = contentUrl.trim();
+
+        const trimmedUrl =
+            contentUrl.trim();
+
 
         const newErrors = {};
 
@@ -96,17 +102,18 @@ function CreateRoomForm() {
         // =========================
         // VALIDAÇÃO DA URL
         // =========================
+        //
+        // O link agora é opcional.
+        // Quando o recurso estiver pronto,
+        // essa validação poderá voltar.
+        //
 
-        if (!trimmedUrl) {
-
-            newErrors.contentUrl =
-                "Digite o link do conteúdo.";
-
-        } else {
+        if (trimmedUrl) {
 
             try {
 
-                const parsedUrl = new URL(trimmedUrl);
+                const parsedUrl =
+                    new URL(trimmedUrl);
 
 
                 if (
@@ -115,7 +122,7 @@ function CreateRoomForm() {
                 ) {
 
                     newErrors.contentUrl =
-                        "Use um link começando com http:// ou https://.";
+                        "Use um link começando com http:// ou https:.";
 
                 }
 
@@ -136,8 +143,12 @@ function CreateRoomForm() {
         setErrors(newErrors);
 
 
-        if (Object.keys(newErrors).length > 0) {
+        if (
+            Object.keys(newErrors).length > 0
+        ) {
+
             return;
+
         }
 
 
@@ -164,7 +175,8 @@ function CreateRoomForm() {
 
             contentUrl: trimmedUrl,
 
-            createdAt: new Date().toISOString()
+            createdAt:
+                new Date().toISOString()
 
         };
 
@@ -173,22 +185,47 @@ function CreateRoomForm() {
         // SALVAR SALA
         // =========================
 
-        saveRoom(roomData);
+        try {
+
+            await saveRoom(
+                roomData
+            );
 
 
-        console.log(
-            "Sala criada:",
-            roomData
-        );
+            console.log(
+                "Sala criada:",
+                roomData
+            );
 
 
-        // =========================
-        // IR PARA A SALA
-        // =========================
+            // =========================
+            // IR PARA A SALA
+            // =========================
 
-        navigate(
-            `/watch/${roomData.id}`
-        );
+            navigate(
+                `/watch/${roomData.id}`
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Erro ao criar sala:",
+                error
+            );
+
+
+            setErrors({
+                submit:
+                    "Não foi possível criar a sala. Tente novamente."
+            });
+
+        } finally {
+
+            setIsSubmitting(
+                false
+            );
+
+        }
 
     }
 
@@ -421,11 +458,53 @@ function CreateRoomForm() {
                 )}
 
 
+                {/* AVISO DO RECURSO */}
+
+                <div className={styles.featureNotice}>
+
+                    <span
+                        className={styles.featureNoticeIcon}
+                        aria-hidden="true"
+                    >
+                        🎬
+                    </span>
+
+
+                    <div>
+
+                        <strong>
+                            Recurso sendo desenvolvido
+                        </strong>
+
+
+                        <p>
+                            A reprodução por link externo
+                            chegará em breve.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
                 <span className={styles.hint}>
-                    Informe o endereço onde o conteúdo será reproduzido.
+                    O link é opcional enquanto este recurso está em desenvolvimento.
                 </span>
 
             </div>
+
+
+            {/* =========================
+                ERRO AO SALVAR
+            ========================= */}
+
+            {errors.submit && (
+
+                <span className={styles.error}>
+                    {errors.submit}
+                </span>
+
+            )}
 
 
             {/* =========================

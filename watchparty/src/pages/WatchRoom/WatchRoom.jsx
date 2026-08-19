@@ -6,17 +6,12 @@ import {
 } from "react-router-dom";
 
 import {
-    getRoomById,
-    updateRoomPlayback
+    getRoomById
 } from "../../services/roomStorage";
-
-import playbackService from "../../services/playbackService";
 
 import realtimeService from "../../services/realtimeService";
 
 import styles from "./WatchRoom.module.css";
-
-import VideoPlayer from "../../components/VideoPlayer/VideoPlayer";
 
 
 function WatchRoom() {
@@ -27,6 +22,8 @@ function WatchRoom() {
 
     const channelRef = useRef(null);
 
+    const isConnectingRef = useRef(false);
+
 
     /*
     ============================================================
@@ -34,121 +31,172 @@ function WatchRoom() {
     ============================================================
     */
 
-    const [room, setRoom] = useState(null);
+    const [room, setRoom] =
+        useState(null);
 
-    const [isLoading, setIsLoading] = useState(true);
 
-    const [copyStatus, setCopyStatus] = useState("idle");
-
-    const [canNativeShare] = useState(
-        () => typeof navigator !== "undefined" &&
-            typeof navigator.share === "function"
-    );
-
-    const shareFeedbackTimeoutRef = useRef(null);
+    const [isLoading, setIsLoading] =
+        useState(true);
 
 
     /*
     ============================================================
-    PLAYBACK
+    COMPARTILHAMENTO
     ============================================================
     */
 
-    const [playbackState, setPlaybackState] = useState({
-
-        isPlaying: false,
-
-        currentTime: 0
-
-    });
+    const [copyStatus, setCopyStatus] =
+        useState("idle");
 
 
-    /*
-    ============================================================
-    REFERÊNCIA DO PLAYBACK
-    ============================================================
-    */
-
-    const playbackStateRef = useRef({
-
-        isPlaying: false,
-
-        currentTime: 0
-
-    });
-
-
-    /*
-    ============================================================
-    ATUALIZAR PLAYBACK
-    ============================================================
-    */
-
-    function updatePlaybackState(newState) {
-
-        playbackStateRef.current =
-            newState;
-
-        setPlaybackState(
-            newState
+    const [canNativeShare] =
+        useState(
+            () =>
+                typeof navigator !== "undefined" &&
+                typeof navigator.share === "function"
         );
 
-    }
+
+    const shareFeedbackTimeoutRef =
+        useRef(null);
+
 
     function getShareUrl() {
+
         return `${window.location.origin}/watch/${roomId}`;
+
     }
+
 
     function showCopyStatus(status) {
-        if (shareFeedbackTimeoutRef.current) {
-            clearTimeout(shareFeedbackTimeoutRef.current);
+
+        if (
+            shareFeedbackTimeoutRef.current
+        ) {
+
+            clearTimeout(
+                shareFeedbackTimeoutRef.current
+            );
+
         }
 
-        setCopyStatus(status);
-        shareFeedbackTimeoutRef.current = setTimeout(() => {
-            setCopyStatus("idle");
-        }, 3000);
+
+        setCopyStatus(
+            status
+        );
+
+
+        shareFeedbackTimeoutRef.current =
+            setTimeout(
+                () => {
+
+                    setCopyStatus(
+                        "idle"
+                    );
+
+                },
+                3000
+            );
+
     }
 
+
     async function handleCopyRoomLink() {
+
         try {
-            if (!navigator.clipboard?.writeText) {
-                throw new Error("Clipboard API indisponível.");
+
+            if (
+                !navigator.clipboard?.writeText
+            ) {
+
+                throw new Error(
+                    "Clipboard API indisponível."
+                );
+
             }
 
-            await navigator.clipboard.writeText(getShareUrl());
-            showCopyStatus("success");
+
+            await navigator.clipboard.writeText(
+                getShareUrl()
+            );
+
+
+            showCopyStatus(
+                "success"
+            );
+
         } catch (error) {
+
             console.error(
                 "[Compartilhamento] Não foi possível copiar o link:",
                 error
             );
-            showCopyStatus("error");
+
+
+            showCopyStatus(
+                "error"
+            );
+
         }
+
     }
 
+
     async function handleNativeShare() {
+
         try {
+
             await navigator.share({
-                title: "WatchParty",
-                text: `Venha assistir comigo na sala "${room.name}".`,
-                url: getShareUrl()
+
+                title:
+                    "WatchParty",
+
+                text:
+                    `Venha assistir comigo na sala "${room.name}".`,
+
+                url:
+                    getShareUrl()
+
             });
+
         } catch (error) {
-            if (error?.name !== "AbortError") {
+
+            if (
+                error?.name !== "AbortError"
+            ) {
+
                 console.error(
                     "[Compartilhamento] Não foi possível compartilhar a sala:",
                     error
                 );
+
             }
+
         }
+
     }
 
-    useEffect(() => () => {
-        if (shareFeedbackTimeoutRef.current) {
-            clearTimeout(shareFeedbackTimeoutRef.current);
-        }
-    }, []);
+
+    useEffect(
+        () => {
+
+            return () => {
+
+                if (
+                    shareFeedbackTimeoutRef.current
+                ) {
+
+                    clearTimeout(
+                        shareFeedbackTimeoutRef.current
+                    );
+
+                }
+
+            };
+
+        },
+        []
+    );
 
 
     /*
@@ -157,9 +205,12 @@ function WatchRoom() {
     ============================================================
     */
 
-    const [messages, setMessages] = useState([]);
+    const [messages, setMessages] =
+        useState([]);
 
-    const [chatMessage, setChatMessage] = useState("");
+
+    const [chatMessage, setChatMessage] =
+        useState("");
 
 
     /*
@@ -188,16 +239,18 @@ function WatchRoom() {
     ============================================================
     */
 
-    const userIdRef = useRef(
-        crypto.randomUUID()
-    );
+    const userIdRef =
+        useRef(
+            crypto.randomUUID()
+        );
 
 
-    const usernameRef = useRef(
-        `Usuário ${Math.floor(
-            Math.random() * 1000
-        )}`
-    );
+    const usernameRef =
+        useRef(
+            `Usuário ${Math.floor(
+                Math.random() * 1000
+            )}`
+        );
 
 
     /*
@@ -206,75 +259,123 @@ function WatchRoom() {
     ============================================================
     */
 
-    useEffect(() => {
+    useEffect(
+        () => {
 
-        setIsLoading(true);
-
-
-        const foundRoom =
-            getRoomById(roomId);
+            let isActive = true;
 
 
-        if (foundRoom) {
+            async function loadRoom() {
 
-            setRoom(foundRoom);
-
-
-            /*
-            ====================================================
-            RECUPERAR PLAYBACK SALVO
-            ====================================================
-            */
-
-            const savedPlayback =
-                foundRoom.playback;
-
-
-            const savedCurrentTime =
-                Number(
-                    savedPlayback?.currentTime
+                setIsLoading(
+                    true
                 );
 
 
-            const initialPlayback = {
+                try {
 
-                isPlaying:
-                    savedPlayback?.isPlaying === true,
+                    console.log(
+                        "[Supabase] Carregando sala:",
+                        roomId
+                    );
 
-                currentTime:
-                    Number.isFinite(
-                        savedCurrentTime
-                    ) &&
-                    savedCurrentTime >= 0
-                        ? savedCurrentTime
-                        : 0
+
+                    const foundRoom =
+                        await getRoomById(
+                            roomId
+                        );
+
+
+                    if (!isActive) {
+
+                        return;
+
+                    }
+
+
+                    if (foundRoom) {
+
+                        console.log(
+                            "[Supabase] Sala carregada:",
+                            foundRoom
+                        );
+
+
+                        setRoom(
+                            foundRoom
+                        );
+
+                    } else {
+
+                        console.warn(
+                            "[Supabase] Sala não encontrada:",
+                            roomId
+                        );
+
+
+                        setRoom(
+                            null
+                        );
+
+                    }
+
+                } catch (error) {
+
+                    console.error(
+                        "[Supabase] Erro ao carregar sala:",
+                        error
+                    );
+
+
+                    if (isActive) {
+
+                        setRoom(
+                            null
+                        );
+
+                    }
+
+                } finally {
+
+                    if (isActive) {
+
+                        setIsLoading(
+                            false
+                        );
+
+                    }
+
+                }
+
+            }
+
+
+            if (roomId) {
+
+                loadRoom();
+
+            } else {
+
+                setRoom(
+                    null
+                );
+
+                setIsLoading(
+                    false
+                );
+
+            }
+
+
+            return () => {
+
+                isActive = false;
 
             };
 
-
-            updatePlaybackState(
-                initialPlayback
-            );
-
-        } else {
-
-            setRoom(null);
-
-
-            updatePlaybackState({
-
-                isPlaying: false,
-
-                currentTime: 0
-
-            });
-
-        }
-
-
-        setIsLoading(false);
-
-    }, [roomId]);
+        },
+        [roomId]
+    );
 
 
     /*
@@ -283,865 +384,374 @@ function WatchRoom() {
     ============================================================
     */
 
-    useEffect(() => {
+    useEffect(
+        () => {
 
-        if (!roomId) {
+            if (!roomId) {
 
-            return;
+                return;
 
-        }
-
-
-        let isActive = true;
+            }
 
 
-        console.log(
-            "[Realtime] Iniciando conexão da sala:",
-            roomId
-        );
+            /*
+            ====================================================
+            EVITAR DUPLICAR CONEXÃO
+            ====================================================
+            */
+
+            if (
+                isConnectingRef.current
+            ) {
+
+                console.log(
+                    "[Realtime] Conexão já está em andamento."
+                );
 
 
-        const channel =
-            realtimeService.createRoomChannel(
+                return;
+
+            }
+
+
+            let isActive = true;
+
+
+            isConnectingRef.current =
+                true;
+
+
+            console.log(
+                "[Realtime] Iniciando conexão da sala:",
                 roomId
             );
 
 
-        channelRef.current =
-            channel;
-
-
-        /*
-        ========================================================
-        OUVIR PLAYBACK
-        ========================================================
-        */
-
-        realtimeService.onPlaybackEvent(
-            channel,
-            (event) => {
-
-                if (!isActive) {
-
-                    return;
-
-                }
-
-
-                if (!event) {
-
-                    return;
-
-                }
-
-
-                console.log(
-                    "[Realtime] Playback recebido:",
-                    event
+            const channel =
+                realtimeService.createRoomChannel(
+                    roomId
                 );
 
 
-                const currentTime =
-                    Number(
-                        event.currentTime
-                    );
+            channelRef.current =
+                channel;
 
 
-                if (
-                    !Number.isFinite(
-                        currentTime
-                    ) ||
-                    currentTime < 0
-                ) {
+            /*
+            ====================================================
+            CHAT
+            ====================================================
+            */
 
-                    console.warn(
-                        "[Realtime] currentTime inválido:",
-                        event.currentTime
-                    );
+            realtimeService.onChatMessage(
+                channel,
+                message => {
 
+                    if (!isActive) {
 
-                    return;
-
-                }
-
-
-                /*
-                ==================================================
-                PLAY
-                ==================================================
-                */
-
-                if (
-                    event.action === "play"
-                ) {
-
-                    console.log(
-                        "[Realtime] Aplicando PLAY remoto:",
-                        currentTime
-                    );
-
-
-                    updatePlaybackState({
-
-                        isPlaying: true,
-
-                        currentTime
-
-                    });
-
-
-                    return;
-
-                }
-
-
-                /*
-                ==================================================
-                PAUSE
-                ==================================================
-                */
-
-                if (
-                    event.action === "pause"
-                ) {
-
-                    console.log(
-                        "[Realtime] Aplicando PAUSE remoto:",
-                        currentTime
-                    );
-
-
-                    updatePlaybackState({
-
-                        isPlaying: false,
-
-                        currentTime
-
-                    });
-
-
-                    return;
-
-                }
-
-
-                /*
-                ==================================================
-                SEEK
-                ==================================================
-                */
-
-                if (
-                    event.action === "seek"
-                ) {
-
-                    console.log(
-                        "[Realtime] Aplicando SEEK remoto:",
-                        currentTime
-                    );
-
-
-                    updatePlaybackState({
-
-                        ...playbackStateRef.current,
-
-                        currentTime
-
-                    });
-
-
-                    return;
-
-                }
-
-
-                console.warn(
-                    "[Realtime] Ação de playback desconhecida:",
-                    event.action
-                );
-
-            }
-        );
-
-
-        /*
-        ========================================================
-        OUVIR CHAT
-        ========================================================
-        */
-
-        realtimeService.onChatMessage(
-            channel,
-            (message) => {
-
-                if (!isActive) {
-
-                    return;
-
-                }
-
-
-                if (!message) {
-
-                    return;
-
-                }
-
-
-                console.log(
-                    "[Realtime] Chat recebido:",
-                    message
-                );
-
-
-                setMessages(
-                    previous => {
-
-                        const alreadyExists =
-                            previous.some(
-                                item =>
-                                    item.id ===
-                                    message.id
-                            );
-
-
-                        if (alreadyExists) {
-
-                            return previous;
-
-                        }
-
-
-                        return [
-                            ...previous,
-                            message
-                        ];
+                        return;
 
                     }
-                );
-
-            }
-        );
 
 
-        /*
-        ========================================================
-        OUVIR PRESENCE
-        ========================================================
-        */
+                    if (!message) {
 
-        realtimeService.onPresenceChange(
-            channel,
-            (state) => {
+                        return;
 
-                if (!isActive) {
+                    }
 
-                    return;
+
+                    console.log(
+                        "[Realtime] Chat recebido:",
+                        message
+                    );
+
+
+                    setMessages(
+                        previous => {
+
+                            const alreadyExists =
+                                previous.some(
+                                    item =>
+                                        item.id ===
+                                        message.id
+                                );
+
+
+                            if (
+                                alreadyExists
+                            ) {
+
+                                return previous;
+
+                            }
+
+
+                            return [
+
+                                ...previous,
+
+                                message
+
+                            ];
+
+                        }
+                    );
 
                 }
+            );
 
 
-                console.log(
-                    "[Presence] Estado recebido:",
-                    state
-                );
+            /*
+            ====================================================
+            PRESENCE
+            ====================================================
+            */
+
+            realtimeService.onPresenceChange(
+                channel,
+                state => {
+
+                    if (!isActive) {
+
+                        return;
+
+                    }
 
 
-                const users = [];
+                    console.log(
+                        "[Presence] Estado recebido:",
+                        state
+                    );
 
 
-                Object.entries(
-                    state || {}
-                ).forEach(
-                    ([key, entries]) => {
+                    const users = [];
 
-                        if (
-                            !Array.isArray(
-                                entries
-                            )
-                        ) {
+
+                    Object.entries(
+                        state || {}
+                    ).forEach(
+                        ([key, entries]) => {
+
+                            if (
+                                !Array.isArray(
+                                    entries
+                                )
+                            ) {
+
+                                return;
+
+                            }
+
+
+                            entries.forEach(
+                                user => {
+
+                                    if (!user) {
+
+                                        return;
+
+                                    }
+
+
+                                    users.push({
+
+                                        ...user,
+
+                                        presenceKey:
+                                            key
+
+                                    });
+
+                                }
+                            );
+
+                        }
+                    );
+
+
+                    /*
+                    ==============================================
+                    REMOVER DUPLICADOS
+                    ==============================================
+                    */
+
+                    const uniqueUsers =
+                        users.filter(
+                            (
+                                user,
+                                index,
+                                array
+                            ) =>
+                                index ===
+                                array.findIndex(
+                                    item =>
+                                        item.userId ===
+                                        user.userId
+                                )
+                        );
+
+
+                    console.log(
+                        "[Presence] Participantes:",
+                        uniqueUsers
+                    );
+
+
+                    setParticipants(
+                        uniqueUsers
+                    );
+
+                }
+            );
+
+
+            /*
+            ====================================================
+            CONECTAR
+            ====================================================
+            */
+
+            realtimeService
+                .connect(
+                    channel
+                )
+
+                .then(
+                    async () => {
+
+                        if (!isActive) {
 
                             return;
 
                         }
 
 
-                        entries.forEach(
-                            (user) => {
-
-                                if (!user) {
-
-                                    return;
-
-                                }
-
-
-                                users.push({
-
-                                    ...user,
-
-                                    presenceKey:
-                                        key
-
-                                });
-
-                            }
-                        );
-
-                    }
-                );
-
-
-                /*
-                ==================================================
-                REMOVER DUPLICADOS
-                ==================================================
-                */
-
-                const uniqueUsers =
-                    users.filter(
-                        (
-                            user,
-                            index,
-                            array
-                        ) =>
-                            index ===
-                            array.findIndex(
-                                item =>
-                                    item.userId ===
-                                    user.userId
-                            )
-                    );
-
-
-                console.log(
-                    "[Presence] Participantes:",
-                    uniqueUsers
-                );
-
-
-                setParticipants(
-                    uniqueUsers
-                );
-
-            }
-        );
-
-
-        /*
-        ========================================================
-        CONECTAR
-        ========================================================
-        */
-
-        realtimeService
-            .connect(channel)
-
-            .then(
-                async () => {
-
-                    if (!isActive) {
-
-                        return;
-
-                    }
-
-
-                    console.log(
-                        "[Realtime] Canal conectado:",
-                        roomId
-                    );
-
-
-                    /*
-                    ==============================================
-                    REGISTRAR USUÁRIO NA SALA
-                    ==============================================
-                    */
-
-                    const currentUser = {
-
-                        userId:
-                            userIdRef.current,
-
-                        username:
-                            usernameRef.current
-
-                    };
-
-
-                    try {
-
-                        await realtimeService.trackPresence(
-                            channel,
-                            currentUser
-                        );
-
-
                         console.log(
-                            "[Presence] Usuário entrou na sala:",
-                            currentUser
+                            "[Realtime] Canal conectado:",
+                            roomId
                         );
 
-                    } catch (error) {
+
+                        const currentUser = {
+
+                            userId:
+                                userIdRef.current,
+
+                            username:
+                                usernameRef.current
+
+                        };
+
+
+                        try {
+
+                            await realtimeService.trackPresence(
+                                channel,
+                                currentUser
+                            );
+
+
+                            console.log(
+                                "[Presence] Usuário entrou na sala:",
+                                currentUser
+                            );
+
+                        } catch (error) {
+
+                            console.error(
+                                "[Presence] Erro ao registrar usuário:",
+                                error
+                            );
+
+                        }
+
+                    }
+                )
+
+                .catch(
+                    error => {
+
+                        if (!isActive) {
+
+                            return;
+
+                        }
+
 
                         console.error(
-                            "[Presence] Erro ao registrar usuário:",
+                            "[Realtime] Erro ao conectar:",
                             error
                         );
 
                     }
+                )
 
-                }
-            )
+                .finally(
+                    () => {
 
-            .catch(
-                (error) => {
+                        if (isActive) {
 
-                    if (!isActive) {
+                            isConnectingRef.current =
+                                false;
 
-                        return;
+                        }
 
                     }
+                );
 
 
-                    console.error(
-                        "[Realtime] Erro ao conectar:",
-                        error
+            /*
+            ====================================================
+            CLEANUP
+            ====================================================
+            */
+
+            return () => {
+
+                isActive = false;
+
+
+                isConnectingRef.current =
+                    false;
+
+
+                setParticipants(
+                    []
+                );
+
+
+                setShowParticipants(
+                    false
+                );
+
+
+                if (
+                    channelRef.current ===
+                    channel
+                ) {
+
+                    console.log(
+                        "[Realtime] Desconectando canal:",
+                        roomId
                     );
 
+
+                    realtimeService.disconnect(
+                        channel
+                    );
+
+
+                    channelRef.current =
+                        null;
+
                 }
-            );
 
+            };
 
-        /*
-        ========================================================
-        CLEANUP
-        ========================================================
-        */
-
-        return () => {
-
-            isActive = false;
-
-
-            setParticipants([]);
-
-            setShowParticipants(false);
-
-
-            if (
-                channelRef.current ===
-                channel
-            ) {
-
-                console.log(
-                    "[Realtime] Desconectando canal:",
-                    roomId
-                );
-
-
-                realtimeService.disconnect(
-                    channel
-                );
-
-
-                channelRef.current =
-                    null;
-
-            }
-
-        };
-
-    }, [roomId]);
-
-
-    /*
-    ============================================================
-    PLAY
-    ============================================================
-    */
-
-    async function handlePlaybackPlay(state) {
-
-        const currentTime =
-            Number(
-                state?.currentTime
-            );
-
-
-        if (
-            !Number.isFinite(
-                currentTime
-            ) ||
-            currentTime < 0
-        ) {
-
-            return;
-
-        }
-
-
-        const event =
-            playbackService.createPlayEvent(
-                currentTime
-            );
-
-
-        const newPlaybackState = {
-
-            isPlaying: true,
-
-            currentTime
-
-        };
-
-
-        /*
-        ========================================================
-        ATUALIZAR ESTADO LOCAL
-        ========================================================
-        */
-
-        updatePlaybackState(
-            newPlaybackState
-        );
-
-
-        /*
-        ========================================================
-        SALVAR NO LOCALSTORAGE
-        ========================================================
-        */
-
-        updateRoomPlayback(
-            roomId,
-            newPlaybackState
-        );
-
-
-        console.log(
-            "[Playback] Play salvo:",
-            event
-        );
-
-
-        /*
-        ========================================================
-        ENVIAR PARA REALTIME
-        ========================================================
-        */
-
-        const activeChannel =
-            channelRef.current;
-
-
-        console.log(
-            "[Realtime] Channel disponível:",
-            !!activeChannel
-        );
-
-
-        if (!activeChannel) {
-
-            console.warn(
-                "[Realtime] Canal ainda não está disponível."
-            );
-
-
-            return;
-
-        }
-
-
-        try {
-
-            const result =
-                await realtimeService.sendPlaybackEvent(
-                    activeChannel,
-                    event
-                );
-
-
-            console.log(
-                "[Realtime] Playback enviado:",
-                event
-            );
-
-
-            console.log(
-                "[Realtime] Resultado do envio:",
-                result
-            );
-
-        } catch (error) {
-
-            console.error(
-                "[Realtime] Erro ao enviar playback:",
-                error
-            );
-
-        }
-
-    }
-
-
-    /*
-    ============================================================
-    PAUSE
-    ============================================================
-    */
-
-    async function handlePlaybackPause(state) {
-
-        const currentTime =
-            Number(
-                state?.currentTime
-            );
-
-
-        if (
-            !Number.isFinite(
-                currentTime
-            ) ||
-            currentTime < 0
-        ) {
-
-            return;
-
-        }
-
-
-        const event =
-            playbackService.createPauseEvent(
-                currentTime
-            );
-
-
-        const newPlaybackState = {
-
-            isPlaying: false,
-
-            currentTime
-
-        };
-
-
-        /*
-        ========================================================
-        ATUALIZAR ESTADO LOCAL
-        ========================================================
-        */
-
-        updatePlaybackState(
-            newPlaybackState
-        );
-
-
-        /*
-        ========================================================
-        SALVAR NO LOCALSTORAGE
-        ========================================================
-        */
-
-        updateRoomPlayback(
-            roomId,
-            newPlaybackState
-        );
-
-
-        console.log(
-            "[Playback] Pause salvo:",
-            event
-        );
-
-
-        /*
-        ========================================================
-        ENVIAR PARA REALTIME
-        ========================================================
-        */
-
-        const activeChannel =
-            channelRef.current;
-
-
-        if (!activeChannel) {
-
-            console.warn(
-                "[Realtime] Canal ainda não está disponível."
-            );
-
-
-            return;
-
-        }
-
-
-        try {
-
-            const result =
-                await realtimeService.sendPlaybackEvent(
-                    activeChannel,
-                    event
-                );
-
-
-            console.log(
-                "[Realtime] Pause enviado:",
-                event
-            );
-
-
-            console.log(
-                "[Realtime] Resultado do envio:",
-                result
-            );
-
-        } catch (error) {
-
-            console.error(
-                "[Realtime] Erro ao enviar pause:",
-                error
-            );
-
-        }
-
-    }
-
-
-    /*
-    ============================================================
-    SEEK
-    ============================================================
-    */
-
-    async function handlePlaybackSeek(state) {
-
-        const currentTime =
-            Number(
-                state?.currentTime
-            );
-
-
-        if (
-            !Number.isFinite(
-                currentTime
-            ) ||
-            currentTime < 0
-        ) {
-
-            return;
-
-        }
-
-
-        const event =
-            playbackService.createSeekEvent(
-                currentTime
-            );
-
-
-        /*
-        ========================================================
-        PEGAR ESTADO MAIS RECENTE
-        ========================================================
-        */
-
-        const currentPlayback =
-            playbackStateRef.current;
-
-
-        const newPlaybackState = {
-
-            ...currentPlayback,
-
-            currentTime
-
-        };
-
-
-        /*
-        ========================================================
-        ATUALIZAR ESTADO LOCAL
-        ========================================================
-        */
-
-        updatePlaybackState(
-            newPlaybackState
-        );
-
-
-        /*
-        ========================================================
-        SALVAR PLAYBACK
-        ========================================================
-        */
-
-        updateRoomPlayback(
-            roomId,
-            newPlaybackState
-        );
-
-
-        console.log(
-            "[Playback] Seek salvo:",
-            event
-        );
-
-
-        /*
-        ========================================================
-        ENVIAR PARA REALTIME
-        ========================================================
-        */
-
-        const activeChannel =
-            channelRef.current;
-
-
-        if (!activeChannel) {
-
-            console.warn(
-                "[Realtime] Canal ainda não está disponível."
-            );
-
-
-            return;
-
-        }
-
-
-        try {
-
-            const result =
-                await realtimeService.sendPlaybackEvent(
-                    activeChannel,
-                    event
-                );
-
-
-            console.log(
-                "[Realtime] Seek enviado:",
-                event
-            );
-
-
-            console.log(
-                "[Realtime] Resultado do envio:",
-                result
-            );
-
-        } catch (error) {
-
-            console.error(
-                "[Realtime] Erro ao enviar seek:",
-                error
-            );
-
-        }
-
-    }
+        },
+        [roomId]
+    );
 
 
     /*
@@ -1182,12 +792,6 @@ function WatchRoom() {
         }
 
 
-        /*
-        ========================================================
-        CRIAR MENSAGEM
-        ========================================================
-        */
-
         const message = {
 
             id:
@@ -1216,12 +820,6 @@ function WatchRoom() {
 
         try {
 
-            /*
-            ====================================================
-            ENVIAR PARA SUPABASE
-            ====================================================
-            */
-
             const result =
                 await realtimeService.sendChatMessage(
                     activeChannel,
@@ -1235,12 +833,6 @@ function WatchRoom() {
             );
 
 
-            /*
-            ====================================================
-            ADICIONAR NA PRÓPRIA ABA
-            ====================================================
-            */
-
             setMessages(
                 previous => {
 
@@ -1252,7 +844,9 @@ function WatchRoom() {
                         );
 
 
-                    if (alreadyExists) {
+                    if (
+                        alreadyExists
+                    ) {
 
                         return previous;
 
@@ -1260,19 +854,16 @@ function WatchRoom() {
 
 
                     return [
+
                         ...previous,
+
                         message
+
                     ];
 
                 }
             );
 
-
-            /*
-            ====================================================
-            LIMPAR INPUT
-            ====================================================
-            */
 
             setChatMessage("");
 
@@ -1297,7 +888,9 @@ function WatchRoom() {
 
     function handleGoHome() {
 
-        navigate("/");
+        navigate(
+            "/"
+        );
 
     }
 
@@ -1312,12 +905,22 @@ function WatchRoom() {
 
         return (
 
-            <main className={styles.page}>
+            <main
+                className={
+                    styles.page
+                }
+            >
 
-                <div className={styles.loading}>
+                <div
+                    className={
+                        styles.loading
+                    }
+                >
 
                     <span
-                        className={styles.spinner}
+                        className={
+                            styles.spinner
+                        }
                     >
                         ◌
                     </span>
@@ -1346,9 +949,17 @@ function WatchRoom() {
 
         return (
 
-            <main className={styles.page}>
+            <main
+                className={
+                    styles.page
+                }
+            >
 
-                <div className={styles.notFound}>
+                <div
+                    className={
+                        styles.notFound
+                    }
+                >
 
                     <span
                         className={
@@ -1399,16 +1010,27 @@ function WatchRoom() {
 
     return (
 
-        <main className={styles.page}>
-
+        <main
+            className={
+                styles.page
+            }
+        >
 
             {/* ==================================================
                 HEADER
             ================================================== */}
 
-            <header className={styles.header}>
+            <header
+                className={
+                    styles.header
+                }
+            >
 
-                <div className={styles.brand}>
+                <div
+                    className={
+                        styles.brand
+                    }
+                >
 
                     <span
                         className={
@@ -1426,7 +1048,11 @@ function WatchRoom() {
                 </div>
 
 
-                <div className={styles.roomInfo}>
+                <div
+                    className={
+                        styles.roomInfo
+                    }
+                >
 
                     <span
                         className={
@@ -1448,7 +1074,12 @@ function WatchRoom() {
                 </div>
 
 
-                <div className={styles.roomActions}>
+                <div
+                    className={
+                        styles.roomActions
+                    }
+                >
+
                     <button
                         type="button"
                         className={`${styles.shareButton} ${
@@ -1458,45 +1089,84 @@ function WatchRoom() {
                                     ? styles.copyError
                                     : ""
                         }`}
-                        onClick={handleCopyRoomLink}
+                        onClick={
+                            handleCopyRoomLink
+                        }
                         aria-live="polite"
                     >
-                        <span aria-hidden="true">
-                            {copyStatus === "success"
-                                ? "✓"
-                                : copyStatus === "error"
-                                    ? "!"
-                                    : "🔗"}
+
+                        <span
+                            aria-hidden="true"
+                        >
+                            {
+                                copyStatus === "success"
+                                    ? "✓"
+                                    : copyStatus === "error"
+                                        ? "!"
+                                        : "🔗"
+                            }
                         </span>
-                        <span className={styles.shareButtonText}>
-                            {copyStatus === "success"
-                                ? "Link copiado!"
-                                : copyStatus === "error"
-                                    ? "Não foi possível copiar"
-                                    : "Copiar link"}
+
+
+                        <span
+                            className={
+                                styles.shareButtonText
+                            }
+                        >
+                            {
+                                copyStatus === "success"
+                                    ? "Link copiado!"
+                                    : copyStatus === "error"
+                                        ? "Não foi possível copiar"
+                                        : "Copiar link"
+                            }
                         </span>
+
                     </button>
 
+
                     {canNativeShare && (
+
                         <button
                             type="button"
-                            className={styles.shareButton}
-                            onClick={handleNativeShare}
+                            className={
+                                styles.shareButton
+                            }
+                            onClick={
+                                handleNativeShare
+                            }
                         >
-                            <span aria-hidden="true">📤</span>
-                            <span className={styles.shareButtonText}>
+
+                            <span
+                                aria-hidden="true"
+                            >
+                                📤
+                            </span>
+
+
+                            <span
+                                className={
+                                    styles.shareButtonText
+                                }
+                            >
                                 Compartilhar
                             </span>
+
                         </button>
+
                     )}
+
 
                     <button
                         type="button"
-                        className={styles.headerButton}
+                        className={
+                            styles.headerButton
+                        }
                         aria-label="Configurações da sala"
                     >
                         ⚙
                     </button>
+
                 </div>
 
             </header>
@@ -1506,11 +1176,14 @@ function WatchRoom() {
                 WORKSPACE
             ================================================== */}
 
-            <div className={styles.workspace}>
-
+            <div
+                className={
+                    styles.workspace
+                }
+            >
 
                 {/* ==================================================
-                    PLAYER
+                    ÁREA DE CONTEÚDO
                 ================================================== */}
 
                 <section
@@ -1519,54 +1192,59 @@ function WatchRoom() {
                     }
                 >
 
-                    <VideoPlayer
-
-                        src={
-                            room.contentUrl
-                        }
-
-                        playback={
-                            playbackState
-                        }
-
-                        onPlay={
-                            handlePlaybackPlay
-                        }
-
-                        onPause={
-                            handlePlaybackPause
-                        }
-
-                        onSeek={
-                            handlePlaybackSeek
-                        }
-
-                    />
-
-
-                    {/* DEBUG PLAYBACK */}
-
                     <div
                         className={
-                            styles.playbackDebug
+                            styles.videoComingSoon
                         }
                     >
 
-                        {
-                            playbackState.isPlaying
-                                ? "▶ Reproduzindo"
-                                : "⏸ Pausado"
-                        }
+                        <div
+                            className={
+                                styles.videoComingSoonIcon
+                            }
+                        >
+                            🎬
+                        </div>
 
-                        {" • "}
 
-                        {
-                            Math.floor(
-                                playbackState.currentTime
-                            )
-                        }
+                        <div
+                            className={
+                                styles.videoComingSoonContent
+                            }
+                        >
 
-                        s
+                            <span
+                                className={
+                                    styles.videoComingSoonBadge
+                                }
+                            >
+                                EM DESENVOLVIMENTO
+                            </span>
+
+
+                            <h1>
+                                Reprodução de vídeo
+                            </h1>
+
+
+                            <p>
+                                Este recurso está sendo desenvolvido
+                                e chegará em breve ao WatchParty.
+                            </p>
+
+
+                            <span
+                                className={
+                                    styles.videoComingSoonDescription
+                                }
+                            >
+                                A reprodução por link externo está
+                                temporariamente desativada. Estamos
+                                preparando uma nova experiência para
+                                assistir juntos.
+                            </span>
+
+                        </div>
 
                     </div>
 
@@ -1582,7 +1260,6 @@ function WatchRoom() {
                         styles.chat
                     }
                 >
-
 
                     {/* ==================================================
                         HEADER DO CHAT
@@ -1621,7 +1298,10 @@ function WatchRoom() {
                                 >
 
                                     <span>
-                                        {participants.length}{" "}
+                                        {
+                                            participants.length
+                                        }{" "}
+
                                         {
                                             participants.length === 1
                                                 ? "participante"
@@ -1678,12 +1358,17 @@ function WatchRoom() {
 
 
                                     <span>
-                                        {participants.length}{" "}
+
+                                        {
+                                            participants.length
+                                        }{" "}
+
                                         {
                                             participants.length === 1
                                                 ? "pessoa"
                                                 : "pessoas"
                                         }
+
                                     </span>
 
                                 </div>
@@ -1696,7 +1381,7 @@ function WatchRoom() {
 
 
                     {/* ==================================================
-                        CONTEÚDO DO CHAT / PARTICIPANTES
+                        CONTEÚDO
                     ================================================== */}
 
                     {showParticipants ? (
@@ -1729,7 +1414,7 @@ function WatchRoom() {
                             ) : (
 
                                 participants.map(
-                                    (participant) => {
+                                    participant => {
 
                                         const isCurrentUser =
                                             participant.userId ===
@@ -1752,12 +1437,14 @@ function WatchRoom() {
                                                         styles.participantAvatar
                                                     }
                                                 >
+
                                                     {
                                                         participant.username
                                                             ?.charAt(0)
                                                             ?.toUpperCase()
                                                         || "U"
                                                     }
+
                                                 </div>
 
 
@@ -1841,7 +1528,7 @@ function WatchRoom() {
                             ) : (
 
                                 messages.map(
-                                    (message) => {
+                                    message => {
 
                                         const isOwnMessage =
                                             message.userId ===
@@ -1929,34 +1616,22 @@ function WatchRoom() {
 
                             <input
                                 type="text"
-
-                                placeholder={
-                                    "Digite uma mensagem..."
-                                }
-
+                                placeholder="Digite uma mensagem..."
                                 aria-label="Mensagem"
-
-                                value={
-                                    chatMessage
-                                }
-
+                                value={chatMessage}
                                 onChange={
-                                    (event) =>
+                                    event =>
                                         setChatMessage(
                                             event.target.value
                                         )
                                 }
-
                                 maxLength={500}
-
                             />
 
 
                             <button
                                 type="submit"
-
                                 aria-label="Enviar mensagem"
-
                                 disabled={
                                     !chatMessage.trim()
                                 }
@@ -2008,4 +1683,3 @@ function formatMessageTime(timestamp) {
 
 
 export default WatchRoom;
-

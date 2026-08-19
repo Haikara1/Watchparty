@@ -41,6 +41,29 @@ function VideoPlayer({
 
     /*
     ============================================================
+    CONTROLE DE PLAY PENDENTE
+    ============================================================
+
+    Evita chamadas duplicadas para video.play() enquanto uma
+    reprodução anterior ainda está sendo processada pelo
+    navegador.
+
+    Isso evita a condição de corrida:
+
+        PLAY remoto
+             +
+        PLAY local
+             ↓
+        duas chamadas play()
+             ↓
+        AbortError / pausa inesperada
+    */
+
+    const playPromiseRef = useRef(null);
+
+
+    /*
+    ============================================================
     AUTOPLAY BLOQUEADO
     ============================================================
     */
@@ -244,19 +267,107 @@ function VideoPlayer({
         }
 
 
-        video
-            .play()
+        /*
+        ========================================================
+        EVITAR PLAY DUPLICADO
+        ========================================================
+        */
+
+        if (!video.paused) {
+
+            return;
+
+        }
+
+
+        if (playPromiseRef.current) {
+
+            return;
+
+        }
+
+
+        const playPromise =
+            video.play();
+
+
+        playPromiseRef.current =
+            playPromise;
+
+
+        playPromise
             .then(() => {
+
+                if (
+                    playPromiseRef.current ===
+                    playPromise
+                ) {
+
+                    playPromiseRef.current =
+                        null;
+
+                }
+
 
                 setAutoplayBlocked(false);
 
             })
             .catch((error) => {
 
+                if (
+                    playPromiseRef.current ===
+                    playPromise
+                ) {
+
+                    playPromiseRef.current =
+                        null;
+
+                }
+
+
+                /*
+                ==================================================
+                AbortError
+
+                Pode acontecer quando uma chamada de play()
+                é interrompida por pause() ou por outra ação
+                do navegador.
+
+                Não tratamos como erro fatal.
+                ==================================================
+                */
+
+                if (
+                    error?.name ===
+                    "AbortError"
+                ) {
+
+                    console.warn(
+                        "[VideoPlayer] PLAY interrompido antes de iniciar."
+                    );
+
+
+                    return;
+
+                }
+
+
                 console.error(
                     "[VideoPlayer] Não foi possível reproduzir:",
                     error
                 );
+
+
+                if (
+                    error?.name ===
+                    "NotAllowedError"
+                ) {
+
+                    setAutoplayBlocked(
+                        true
+                    );
+
+                }
 
             });
 
@@ -276,6 +387,13 @@ function VideoPlayer({
 
 
         if (!video) {
+
+            return;
+
+        }
+
+
+        if (video.paused) {
 
             return;
 
@@ -310,8 +428,10 @@ function VideoPlayer({
         ========================================================
         INTERAÇÃO REAL DO USUÁRIO
 
-        Aqui o usuário está comandando o próprio vídeo.
-        Portanto, não marcamos como remoto.
+        O usuário está comandando o próprio vídeo.
+
+        Portanto, qualquer marcação anterior de comando remoto
+        deve ser descartada.
         ========================================================
         */
 
@@ -340,29 +460,8 @@ function VideoPlayer({
 
     /*
     ============================================================
-    ⭐ SINCRONIZAÇÃO MANUAL DO AUTOPLAY
+    SINCRONIZAÇÃO MANUAL DO AUTOPLAY
     ============================================================
-
-    Quando o navegador bloqueia o PLAY remoto, mostramos:
-
-        ▶ Sincronizar vídeo
-
-    O clique nesse botão representa uma interação real do
-    usuário.
-
-    Porém, o comando continua sendo REMOTO.
-
-    Portanto:
-
-        usuário libera autoplay
-                ↓
-        vídeo reproduz
-                ↓
-        onPlay dispara
-                ↓
-        handleVideoPlay percebe "play"
-                ↓
-        NÃO envia novamente para Supabase
     */
 
     function handleAutoplaySync() {
@@ -383,21 +482,9 @@ function VideoPlayer({
         );
 
 
-        /*
-        ========================================================
-        CONTINUAR MARCANDO COMO PLAY REMOTO
-        ========================================================
-        */
-
         remoteActionRef.current =
             "play";
 
-
-        /*
-        ========================================================
-        APLICAR TEMPO REMOTO
-        ========================================================
-        */
 
         const remoteTime =
             Number(
@@ -434,39 +521,78 @@ function VideoPlayer({
 
         /*
         ========================================================
-        TENTAR PLAY
+        Se já estiver reproduzindo, não chamamos play() outra
+        vez.
         ========================================================
         */
 
-        video
-            .play()
+        if (!video.paused) {
+
+            remoteActionRef.current =
+                null;
+
+            setAutoplayBlocked(false);
+
+            return;
+
+        }
+
+
+        if (playPromiseRef.current) {
+
+            return;
+
+        }
+
+
+        const playPromise =
+            video.play();
+
+
+        playPromiseRef.current =
+            playPromise;
+
+
+        playPromise
             .then(() => {
+
+                if (
+                    playPromiseRef.current ===
+                    playPromise
+                ) {
+
+                    playPromiseRef.current =
+                        null;
+
+                }
+
 
                 console.log(
                     "[VideoPlayer] ▶ Autoplay remoto liberado pelo usuário."
                 );
 
 
-                setAutoplayBlocked(
-                    false
-                );
+                setAutoplayBlocked(false);
 
             })
             .catch((error) => {
+
+                if (
+                    playPromiseRef.current ===
+                    playPromise
+                ) {
+
+                    playPromiseRef.current =
+                        null;
+
+                }
+
 
                 console.error(
                     "[VideoPlayer] Não foi possível sincronizar:",
                     error
                 );
 
-
-                /*
-                ==================================================
-                Se ainda falhar, não apagamos imediatamente a
-                informação de PLAY remoto caso o navegador tenha
-                disparado alguma ação parcialmente.
-                ==================================================
-                */
 
                 if (
                     error?.name ===
@@ -776,9 +902,48 @@ function VideoPlayer({
                 "play";
 
 
-            video
-                .play()
+            if (
+                !video.paused
+            ) {
+
+                remoteActionRef.current =
+                    null;
+
+                return;
+
+            }
+
+
+            if (
+                playPromiseRef.current
+            ) {
+
+                return;
+
+            }
+
+
+            const playPromise =
+                video.play();
+
+
+            playPromiseRef.current =
+                playPromise;
+
+
+            playPromise
                 .then(() => {
+
+                    if (
+                        playPromiseRef.current ===
+                        playPromise
+                    ) {
+
+                        playPromiseRef.current =
+                            null;
+
+                    }
+
 
                     setAutoplayBlocked(
                         false
@@ -787,17 +952,22 @@ function VideoPlayer({
                 })
                 .catch((error) => {
 
+                    if (
+                        playPromiseRef.current ===
+                        playPromise
+                    ) {
+
+                        playPromiseRef.current =
+                            null;
+
+                    }
+
+
                     console.warn(
                         "[VideoPlayer] Autoplay inicial bloqueado:",
                         error
                     );
 
-
-                    /*
-                    Mantemos "play" aqui para que, quando o
-                    usuário clicar em sincronizar, o PLAY ainda
-                    seja tratado como remoto.
-                    */
 
                     remoteActionRef.current =
                         "play";
@@ -837,6 +1007,10 @@ function VideoPlayer({
             null;
 
 
+        playPromiseRef.current =
+            null;
+
+
         setHasError(false);
 
         setAutoplayBlocked(false);
@@ -852,7 +1026,7 @@ function VideoPlayer({
 
     /*
     ============================================================
-    ⭐ SINCRONIZAÇÃO REALTIME
+    SINCRONIZAÇÃO REALTIME
     ============================================================
     */
 
@@ -910,15 +1084,6 @@ function VideoPlayer({
                 );
 
 
-                /*
-                ==================================================
-                MARCAR COMO REMOTO
-
-                Isso evita que uma alteração causada pelo
-                Realtime seja confundida com ação local.
-                ==================================================
-                */
-
                 remoteActionRef.current =
                     "seek";
 
@@ -943,17 +1108,6 @@ function VideoPlayer({
                 }
 
 
-                /*
-                ==================================================
-                Não precisamos manter "seek" indefinidamente.
-
-                Se o vídeo estiver pausado, o evento de seek não
-                dispara PLAY/PAUSE.
-
-                Portanto podemos limpar aqui.
-                ==================================================
-                */
-
                 remoteActionRef.current =
                     null;
 
@@ -973,7 +1127,8 @@ function VideoPlayer({
         ) {
 
             if (
-                video.paused
+                video.paused &&
+                !playPromiseRef.current
             ) {
 
                 console.log(
@@ -985,9 +1140,27 @@ function VideoPlayer({
                     "play";
 
 
-                video
-                    .play()
+                const playPromise =
+                    video.play();
+
+
+                playPromiseRef.current =
+                    playPromise;
+
+
+                playPromise
                     .then(() => {
+
+                        if (
+                            playPromiseRef.current ===
+                            playPromise
+                        ) {
+
+                            playPromiseRef.current =
+                                null;
+
+                        }
+
 
                         console.log(
                             "[VideoPlayer] ▶ PLAY remoto executado."
@@ -1001,23 +1174,22 @@ function VideoPlayer({
                     })
                     .catch((error) => {
 
+                        if (
+                            playPromiseRef.current ===
+                            playPromise
+                        ) {
+
+                            playPromiseRef.current =
+                                null;
+
+                        }
+
+
                         console.warn(
                             "[VideoPlayer] PLAY remoto bloqueado:",
                             error
                         );
 
-
-                        /*
-                        ==================================================
-                        IMPORTANTE:
-
-                        NÃO limpar remoteActionRef aqui.
-
-                        O usuário poderá clicar em "Sincronizar vídeo"
-                        e o PLAY continuará sendo identificado como
-                        remoto.
-                        ==================================================
-                        */
 
                         remoteActionRef.current =
                             "play";
@@ -1094,14 +1266,6 @@ function VideoPlayer({
 
         }
 
-
-        /*
-        ========================================================
-        Esta ação veio diretamente do usuário.
-
-        Portanto não é remota.
-        ========================================================
-        */
 
         remoteActionRef.current =
             null;
@@ -1291,7 +1455,7 @@ function VideoPlayer({
                     document.webkitExitFullscreen
                 ) {
 
-                    await document.webkitExitFullscreen();
+                    document.webkitExitFullscreen();
 
                 }
 
@@ -1400,6 +1564,9 @@ function VideoPlayer({
         return () => {
 
             clearControlsTimeout();
+
+            playPromiseRef.current =
+                null;
 
         };
 
