@@ -1607,3 +1607,128 @@
     }
 
 }
+
+
+.roomActions {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    flex-shrink: 0;
+
+}
+
+
+.shareButton {
+
+    min-height: 40px;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 7px;
+
+    padding: 0 12px;
+
+    border: 1px solid rgba(255, 255, 255, 0.12);
+
+    border-radius: 10px;
+
+    background: rgba(255, 255, 255, 0.06);
+
+    color: #ffffff;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+    white-space: nowrap;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease;
+
+}
+
+
+.shareButton:hover {
+
+    background: rgba(255, 255, 255, 0.12);
+
+}
+
+
+.copySuccess {
+
+    border-color: rgba(74, 222, 128, 0.55);
+
+    background: rgba(34, 197, 94, 0.16);
+
+    color: #bbf7d0;
+
+}
+
+
+.copyError {
+
+    border-color: rgba(248, 113, 113, 0.6);
+
+    background: rgba(239, 68, 68, 0.16);
+
+    color: #fecaca;
+
+}
+
+
+@media (max-width: 700px) {
+
+    .brand > span:last-child {
+
+        display: none;
+
+    }
+
+
+    .roomName {
+
+        max-width: 70px;
+
+    }
+
+
+    .roomActions {
+
+        gap: 4px;
+
+    }
+
+
+    .shareButton {
+
+        width: 36px;
+
+        min-height: 36px;
+
+        padding: 0;
+
+        font-size: 15px;
+
+    }
+
+
+    .shareButtonText {
+
+        display: none;
+
+    }
+
+}

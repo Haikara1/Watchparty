@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
     useNavigate
@@ -17,39 +17,9 @@ function Salas() {
     const navigate = useNavigate();
 
 
-    const [rooms, setRooms] = useState([]);
-
-
-    /*
-    ============================================================
-    CARREGAR SALAS
-    ============================================================
-    */
-
-    useEffect(() => {
-
-        loadRooms();
-
-    }, []);
-
-
-    /*
-    ============================================================
-    CARREGAR SALAS DO LOCALSTORAGE
-    ============================================================
-    */
-
-    function loadRooms() {
-
-        const savedRooms =
-            getRooms();
-
-
-        setRooms(
-            savedRooms
-        );
-
-    }
+    const [rooms, setRooms] = useState(
+        () => getRooms()
+    );
 
 
     /*

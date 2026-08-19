@@ -38,6 +38,15 @@ function WatchRoom() {
 
     const [isLoading, setIsLoading] = useState(true);
 
+    const [copyStatus, setCopyStatus] = useState("idle");
+
+    const [canNativeShare] = useState(
+        () => typeof navigator !== "undefined" &&
+            typeof navigator.share === "function"
+    );
+
+    const shareFeedbackTimeoutRef = useRef(null);
+
 
     /*
     ============================================================
@@ -85,6 +94,61 @@ function WatchRoom() {
         );
 
     }
+
+    function getShareUrl() {
+        return `${window.location.origin}/watch/${roomId}`;
+    }
+
+    function showCopyStatus(status) {
+        if (shareFeedbackTimeoutRef.current) {
+            clearTimeout(shareFeedbackTimeoutRef.current);
+        }
+
+        setCopyStatus(status);
+        shareFeedbackTimeoutRef.current = setTimeout(() => {
+            setCopyStatus("idle");
+        }, 3000);
+    }
+
+    async function handleCopyRoomLink() {
+        try {
+            if (!navigator.clipboard?.writeText) {
+                throw new Error("Clipboard API indisponível.");
+            }
+
+            await navigator.clipboard.writeText(getShareUrl());
+            showCopyStatus("success");
+        } catch (error) {
+            console.error(
+                "[Compartilhamento] Não foi possível copiar o link:",
+                error
+            );
+            showCopyStatus("error");
+        }
+    }
+
+    async function handleNativeShare() {
+        try {
+            await navigator.share({
+                title: "WatchParty",
+                text: `Venha assistir comigo na sala "${room.name}".`,
+                url: getShareUrl()
+            });
+        } catch (error) {
+            if (error?.name !== "AbortError") {
+                console.error(
+                    "[Compartilhamento] Não foi possível compartilhar a sala:",
+                    error
+                );
+            }
+        }
+    }
+
+    useEffect(() => () => {
+        if (shareFeedbackTimeoutRef.current) {
+            clearTimeout(shareFeedbackTimeoutRef.current);
+        }
+    }, []);
 
 
     /*
@@ -1384,15 +1448,56 @@ function WatchRoom() {
                 </div>
 
 
-                <button
-                    type="button"
-                    className={
-                        styles.headerButton
-                    }
-                    aria-label="Configurações da sala"
-                >
-                    ⚙
-                </button>
+                <div className={styles.roomActions}>
+                    <button
+                        type="button"
+                        className={`${styles.shareButton} ${
+                            copyStatus === "success"
+                                ? styles.copySuccess
+                                : copyStatus === "error"
+                                    ? styles.copyError
+                                    : ""
+                        }`}
+                        onClick={handleCopyRoomLink}
+                        aria-live="polite"
+                    >
+                        <span aria-hidden="true">
+                            {copyStatus === "success"
+                                ? "✓"
+                                : copyStatus === "error"
+                                    ? "!"
+                                    : "🔗"}
+                        </span>
+                        <span className={styles.shareButtonText}>
+                            {copyStatus === "success"
+                                ? "Link copiado!"
+                                : copyStatus === "error"
+                                    ? "Não foi possível copiar"
+                                    : "Copiar link"}
+                        </span>
+                    </button>
+
+                    {canNativeShare && (
+                        <button
+                            type="button"
+                            className={styles.shareButton}
+                            onClick={handleNativeShare}
+                        >
+                            <span aria-hidden="true">📤</span>
+                            <span className={styles.shareButtonText}>
+                                Compartilhar
+                            </span>
+                        </button>
+                    )}
+
+                    <button
+                        type="button"
+                        className={styles.headerButton}
+                        aria-label="Configurações da sala"
+                    >
+                        ⚙
+                    </button>
+                </div>
 
             </header>
 

@@ -24,7 +24,7 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 
-const supabase =
+export const supabase =
     createClient(
         supabaseUrl,
         supabaseKey
@@ -73,6 +73,10 @@ CONTROLE INTERNO DOS CANAIS
 
 const channelControllers =
     new WeakMap();
+
+
+let anonymousSessionPromise =
+    null;
 
 
 /*
@@ -661,6 +665,139 @@ REALTIME SERVICE
 */
 
 const realtimeService = {
+
+    /*
+    ========================================================
+    SESSÃO ANÔNIMA
+    ========================================================
+    */
+
+    ensureAnonymousSession() {
+
+        if (anonymousSessionPromise) {
+
+            return anonymousSessionPromise;
+
+        }
+
+
+        anonymousSessionPromise =
+            (async () => {
+
+                const {
+                    data,
+                    error
+                } = await supabase.auth.getSession();
+
+
+                if (error) {
+
+                    throw error;
+
+                }
+
+
+                if (
+                    data.session?.user &&
+                    data.session.user.is_anonymous === true
+                ) {
+
+                    console.log(
+                        "[Auth] Usuário anônimo:",
+                        {
+                            id: data.session.user.id,
+                            is_anonymous:
+                                data.session.user.is_anonymous,
+                            role: data.session.user.role,
+                            aud: data.session.user.aud,
+                            provider:
+                                data.session.user.app_metadata?.provider
+                        }
+                    );
+
+
+                    console.log(
+                        "[Auth] Supabase URL:",
+                        supabaseUrl
+                    );
+
+                    console.log(
+                        "[Auth] Sessão anônima existente encontrada."
+                    );
+
+
+                    return data.session;
+
+                }
+
+
+                if (data.session) {
+
+                    console.log(
+                        "[Auth] Sessão existente não é anônima."
+                    );
+
+                }
+
+
+                console.log(
+                    "[Auth] Nenhuma sessão válida. Criando sessão anônima..."
+                );
+
+
+                const {
+                    data: signInData,
+                    error: signInError
+                } = await supabase.auth.signInAnonymously();
+
+
+                if (signInError) {
+
+                    throw signInError;
+
+                }
+
+
+                if (
+                    !signInData.session ||
+                    !signInData.user ||
+                    signInData.user.is_anonymous !== true
+                ) {
+
+                    throw new Error(
+                        "O Supabase não retornou um usuário anônimo."
+                    );
+
+                }
+
+
+                console.log(
+                    "[Auth] Sessão anônima criada com sucesso."
+                );
+
+
+                return signInData.session;
+
+            })()
+
+                .catch((error) => {
+
+                    console.error(
+                        "[Auth] Erro ao criar sessão anônima."
+                    );
+
+                    anonymousSessionPromise =
+                        null;
+
+
+                    throw error;
+
+                });
+
+
+        return anonymousSessionPromise;
+
+    },
 
 
     /*
