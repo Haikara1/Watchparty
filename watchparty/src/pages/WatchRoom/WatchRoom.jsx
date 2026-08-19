@@ -11,6 +11,8 @@ import {
 
 import realtimeService from "../../services/realtimeService";
 
+import screenShareService from "../../services/screenShareService";
+
 import styles from "./WatchRoom.module.css";
 
 
@@ -24,20 +26,15 @@ function WatchRoom() {
 
     const isConnectingRef = useRef(false);
 
-
     /*
     ============================================================
     SALA
     ============================================================
     */
 
-    const [room, setRoom] =
-        useState(null);
+    const [room, setRoom] = useState(null);
 
-
-    const [isLoading, setIsLoading] =
-        useState(true);
-
+    const [isLoading, setIsLoading] = useState(true);
 
     /*
     ============================================================
@@ -45,159 +42,95 @@ function WatchRoom() {
     ============================================================
     */
 
-    const [copyStatus, setCopyStatus] =
-        useState("idle");
+    const [copyStatus, setCopyStatus] = useState("idle");
 
+    const [canNativeShare] = useState(
+        () =>
+            typeof navigator !== "undefined" &&
+            typeof navigator.share === "function"
+    );
 
-    const [canNativeShare] =
-        useState(
-            () =>
-                typeof navigator !== "undefined" &&
-                typeof navigator.share === "function"
-        );
-
-
-    const shareFeedbackTimeoutRef =
-        useRef(null);
-
+    const shareFeedbackTimeoutRef = useRef(null);
 
     function getShareUrl() {
-
         return `${window.location.origin}/watch/${roomId}`;
-
     }
-
 
     function showCopyStatus(status) {
 
-        if (
-            shareFeedbackTimeoutRef.current
-        ) {
-
-            clearTimeout(
-                shareFeedbackTimeoutRef.current
-            );
-
+        if (shareFeedbackTimeoutRef.current) {
+            clearTimeout(shareFeedbackTimeoutRef.current);
         }
 
+        setCopyStatus(status);
 
-        setCopyStatus(
-            status
-        );
-
-
-        shareFeedbackTimeoutRef.current =
-            setTimeout(
-                () => {
-
-                    setCopyStatus(
-                        "idle"
-                    );
-
-                },
-                3000
-            );
-
+        shareFeedbackTimeoutRef.current = setTimeout(() => {
+            setCopyStatus("idle");
+        }, 3000);
     }
-
 
     async function handleCopyRoomLink() {
 
         try {
 
-            if (
-                !navigator.clipboard?.writeText
-            ) {
-
-                throw new Error(
-                    "Clipboard API indisponível."
-                );
-
+            if (!navigator.clipboard?.writeText) {
+                throw new Error("Clipboard API indisponível.");
             }
 
+            await navigator.clipboard.writeText(getShareUrl());
 
-            await navigator.clipboard.writeText(
-                getShareUrl()
-            );
-
-
-            showCopyStatus(
-                "success"
-            );
+            showCopyStatus("success");
 
         } catch (error) {
 
             console.error(
-                "[Compartilhamento] Não foi possível copiar o link:",
+                "[Compartilhamento] Erro ao copiar:",
                 error
             );
 
-
-            showCopyStatus(
-                "error"
-            );
-
+            showCopyStatus("error");
         }
-
     }
 
-
     async function handleNativeShare() {
+
+        if (!room) {
+            return;
+        }
 
         try {
 
             await navigator.share({
-
-                title:
-                    "WatchParty",
-
-                text:
-                    `Venha assistir comigo na sala "${room.name}".`,
-
-                url:
-                    getShareUrl()
-
+                title: "WatchParty",
+                text: `Venha assistir comigo na sala "${room.name}".`,
+                url: getShareUrl()
             });
 
         } catch (error) {
 
-            if (
-                error?.name !== "AbortError"
-            ) {
+            if (error?.name !== "AbortError") {
 
                 console.error(
-                    "[Compartilhamento] Não foi possível compartilhar a sala:",
+                    "[Compartilhamento] Erro ao compartilhar:",
                     error
                 );
-
             }
-
         }
-
     }
 
+    useEffect(() => {
 
-    useEffect(
-        () => {
+        return () => {
 
-            return () => {
-
-                if (
+            if (shareFeedbackTimeoutRef.current) {
+                clearTimeout(
                     shareFeedbackTimeoutRef.current
-                ) {
+                );
+            }
 
-                    clearTimeout(
-                        shareFeedbackTimeoutRef.current
-                    );
+        };
 
-                }
-
-            };
-
-        },
-        []
-    );
-
+    }, []);
 
     /*
     ============================================================
@@ -205,53 +138,1253 @@ function WatchRoom() {
     ============================================================
     */
 
-    const [messages, setMessages] =
-        useState([]);
+    const [messages, setMessages] = useState([]);
 
-
-    const [chatMessage, setChatMessage] =
-        useState("");
-
+    const [chatMessage, setChatMessage] = useState("");
 
     /*
     ============================================================
-    PRESENCE
+    PRESENÇA
     ============================================================
     */
 
-    const [participants, setParticipants] =
-        useState([]);
-
-
-    /*
-    ============================================================
-    CONTROLE DO CABEÇALHO DO CHAT
-    ============================================================
-    */
+    const [participants, setParticipants] = useState([]);
 
     const [showParticipants, setShowParticipants] =
         useState(false);
 
-
     /*
     ============================================================
-    IDENTIDADE TEMPORÁRIA DO USUÁRIO
+    IDENTIDADE
     ============================================================
     */
 
-    const userIdRef =
-        useRef(
-            crypto.randomUUID()
+    const userIdRef = useRef(
+        crypto.randomUUID()
+    );
+
+    const usernameRef = useRef(
+        `Usuário ${Math.floor(Math.random() * 1000)}`
+    );
+
+    /*
+    ============================================================
+    WEBRTC
+    ============================================================
+    */
+
+    const localScreenStreamRef = useRef(null);
+
+    const outgoingPeersRef = useRef(new Map());
+
+    const incomingPeersRef = useRef(new Map());
+
+    const pendingIceCandidatesRef = useRef(new Map());
+
+    /*
+    ============================================================
+    STREAM REMOTA
+    ============================================================
+    */
+
+    const [remoteScreenStream, setRemoteScreenStream] =
+        useState(null);
+
+    const [remoteScreenSharer, setRemoteScreenSharer] =
+        useState(null);
+
+    /*
+    ============================================================
+    COMPARTILHAMENTO LOCAL
+    ============================================================
+    */
+
+    const [isScreenSharing, setIsScreenSharing] =
+        useState(false);
+
+    const [screenShareError, setScreenShareError] =
+        useState("");
+
+    /*
+    ============================================================
+    PLAYER
+    ============================================================
+    */
+
+    const remoteVideoRef = useRef(null);
+
+    const playerContainerRef = useRef(null);
+
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    const [volume, setVolume] = useState(1);
+
+    const [isMuted, setIsMuted] = useState(true);
+
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const [isPictureInPicture, setIsPictureInPicture] =
+        useState(false);
+
+    const [showControls, setShowControls] = useState(true);
+
+    const controlsTimeoutRef = useRef(null);
+
+    /*
+    ============================================================
+    PLAYER - ÁUDIO
+    ============================================================
+    */
+
+    useEffect(() => {
+
+        const video = remoteVideoRef.current;
+
+        if (!video) {
+            return;
+        }
+
+        video.volume = volume;
+        video.muted = isMuted;
+
+    }, [volume, isMuted]);
+
+    /*
+    ============================================================
+    PLAYER - STREAM REMOTA
+    ============================================================
+    */
+
+    useEffect(() => {
+
+        const video = remoteVideoRef.current;
+
+        if (!video) {
+            return;
+        }
+
+        if (remoteScreenStream) {
+
+            if (video.srcObject !== remoteScreenStream) {
+                video.srcObject = remoteScreenStream;
+            }
+
+            video.volume = volume;
+
+            /*
+            O stream remoto começa mutado para
+            evitar bloqueio de autoplay.
+            */
+
+            video.muted = true;
+
+            setIsMuted(true);
+
+            const playVideo = async () => {
+
+                try {
+
+                    await video.play();
+
+                    setIsPlaying(true);
+
+                } catch (error) {
+
+                    console.warn(
+                        "[ScreenShare] Autoplay bloqueado:",
+                        error
+                    );
+
+                    setIsPlaying(false);
+                }
+            };
+
+            const timeoutId = setTimeout(
+                playVideo,
+                50
+            );
+
+            return () => {
+                clearTimeout(timeoutId);
+            };
+        }
+
+        video.pause();
+
+        video.srcObject = null;
+
+        setIsPlaying(false);
+
+    }, [remoteScreenStream]);
+
+    /*
+    ============================================================
+    CONTROLES
+    ============================================================
+    */
+
+    function resetControlsTimeout() {
+
+        setShowControls(true);
+
+        if (controlsTimeoutRef.current) {
+            clearTimeout(
+                controlsTimeoutRef.current
+            );
+        }
+
+        if (isPlaying) {
+
+            controlsTimeoutRef.current =
+                setTimeout(() => {
+
+                    setShowControls(false);
+
+                }, 3000);
+        }
+    }
+
+    useEffect(() => {
+
+        return () => {
+
+            if (controlsTimeoutRef.current) {
+                clearTimeout(
+                    controlsTimeoutRef.current
+                );
+            }
+
+        };
+
+    }, []);
+
+    /*
+    ============================================================
+    PLAY / PAUSE
+    ============================================================
+    */
+
+    async function handleTogglePlay() {
+
+        const video = remoteVideoRef.current;
+
+        if (!video) {
+            return;
+        }
+
+        try {
+
+            if (video.paused) {
+
+                await video.play();
+
+                setIsPlaying(true);
+
+            } else {
+
+                video.pause();
+
+                setIsPlaying(false);
+            }
+
+        } catch (error) {
+
+            console.error(
+                "[ScreenShare] Erro ao reproduzir:",
+                error
+            );
+        }
+
+        resetControlsTimeout();
+    }
+
+    /*
+    ============================================================
+    VOLUME
+    ============================================================
+    */
+
+    function handleVolumeChange(event) {
+
+        const value = Number(event.target.value);
+
+        setVolume(value);
+
+        const muted = value === 0;
+
+        setIsMuted(muted);
+
+        const video = remoteVideoRef.current;
+
+        if (!video) {
+            resetControlsTimeout();
+            return;
+        }
+
+        video.volume = value;
+
+        video.muted = muted;
+
+        if (!muted && video.paused) {
+
+            video.play()
+                .then(() => {
+                    setIsPlaying(true);
+                })
+                .catch(error => {
+
+                    console.warn(
+                        "[ScreenShare] Não foi possível iniciar áudio:",
+                        error
+                    );
+
+                });
+        }
+
+        resetControlsTimeout();
+    }
+
+    /*
+    ============================================================
+    MUTE
+    ============================================================
+    */
+
+    function handleToggleMute() {
+
+        const video = remoteVideoRef.current;
+
+        if (!video) {
+            return;
+        }
+
+        if (video.muted) {
+
+            video.muted = false;
+
+            setIsMuted(false);
+
+            if (video.volume === 0) {
+
+                video.volume = 1;
+
+                setVolume(1);
+            }
+
+            if (video.paused) {
+
+                video.play()
+                    .then(() => {
+                        setIsPlaying(true);
+                    })
+                    .catch(error => {
+
+                        console.warn(
+                            "[ScreenShare] Erro ao ativar áudio:",
+                            error
+                        );
+
+                    });
+            }
+
+        } else {
+
+            video.muted = true;
+
+            setIsMuted(true);
+        }
+
+        resetControlsTimeout();
+    }
+
+    /*
+    ============================================================
+    FULLSCREEN
+    ============================================================
+    */
+
+    async function handleToggleFullscreen() {
+
+        const container =
+            playerContainerRef.current;
+
+        if (!container) {
+            return;
+        }
+
+        try {
+
+            if (!document.fullscreenElement) {
+
+                await container.requestFullscreen();
+
+            } else {
+
+                await document.exitFullscreen();
+            }
+
+        } catch (error) {
+
+            console.error(
+                "[ScreenShare] Erro no fullscreen:",
+                error
+            );
+        }
+
+        resetControlsTimeout();
+    }
+
+    useEffect(() => {
+
+        function handleFullscreenChange() {
+
+            setIsFullscreen(
+                Boolean(document.fullscreenElement)
+            );
+        }
+
+        document.addEventListener(
+            "fullscreenchange",
+            handleFullscreenChange
         );
 
+        return () => {
 
-    const usernameRef =
-        useRef(
-            `Usuário ${Math.floor(
-                Math.random() * 1000
-            )}`
+            document.removeEventListener(
+                "fullscreenchange",
+                handleFullscreenChange
+            );
+
+        };
+
+    }, []);
+
+    /*
+    ============================================================
+    PICTURE-IN-PICTURE
+    ============================================================
+    */
+
+    async function handleTogglePictureInPicture() {
+
+        const video = remoteVideoRef.current;
+
+        if (!video) {
+            return;
+        }
+
+        if (!document.pictureInPictureEnabled) {
+            return;
+        }
+
+        try {
+
+            if (document.pictureInPictureElement) {
+
+                await document.exitPictureInPicture();
+
+            } else {
+
+                await video.requestPictureInPicture();
+            }
+
+        } catch (error) {
+
+            console.error(
+                "[ScreenShare] Erro no Picture-in-Picture:",
+                error
+            );
+        }
+
+        resetControlsTimeout();
+    }
+
+    useEffect(() => {
+
+        const video = remoteVideoRef.current;
+
+        if (!video) {
+            return;
+        }
+
+        function handleEnter() {
+            setIsPictureInPicture(true);
+        }
+
+        function handleLeave() {
+            setIsPictureInPicture(false);
+        }
+
+        video.addEventListener(
+            "enterpictureinpicture",
+            handleEnter
         );
 
+        video.addEventListener(
+            "leavepictureinpicture",
+            handleLeave
+        );
+
+        return () => {
+
+            video.removeEventListener(
+                "enterpictureinpicture",
+                handleEnter
+            );
+
+            video.removeEventListener(
+                "leavepictureinpicture",
+                handleLeave
+            );
+
+        };
+
+    }, [remoteScreenStream]);
+
+    /*
+    ============================================================
+    AUXILIARES WEBRTC
+    ============================================================
+    */
+
+    function getActiveChannel() {
+        return channelRef.current;
+    }
+
+    function isCurrentUser(userId) {
+        return userId === userIdRef.current;
+    }
+
+    function closeOutgoingPeer(userId) {
+
+        const peer =
+            outgoingPeersRef.current.get(userId);
+
+        if (!peer) {
+            return;
+        }
+
+        screenShareService.closePeerConnection(peer);
+
+        outgoingPeersRef.current.delete(userId);
+    }
+
+    function closeIncomingPeer(userId) {
+
+        const peer =
+            incomingPeersRef.current.get(userId);
+
+        if (!peer) {
+            return;
+        }
+
+        screenShareService.closePeerConnection(peer);
+
+        incomingPeersRef.current.delete(userId);
+
+        pendingIceCandidatesRef.current.delete(userId);
+    }
+
+    function closeAllScreenSharePeers() {
+
+        outgoingPeersRef.current.forEach(peer => {
+
+            screenShareService.closePeerConnection(peer);
+
+        });
+
+        incomingPeersRef.current.forEach(peer => {
+
+            screenShareService.closePeerConnection(peer);
+
+        });
+
+        outgoingPeersRef.current.clear();
+
+        incomingPeersRef.current.clear();
+
+        pendingIceCandidatesRef.current.clear();
+    }
+
+    async function flushPendingIceCandidates(
+        peerConnection,
+        remoteUserId
+    ) {
+
+        const candidates =
+            pendingIceCandidatesRef.current.get(
+                remoteUserId
+            );
+
+        if (!candidates?.length) {
+            return;
+        }
+
+        for (const candidate of candidates) {
+
+            await screenShareService.addIceCandidate(
+                peerConnection,
+                candidate
+            );
+        }
+
+        pendingIceCandidatesRef.current.delete(
+            remoteUserId
+        );
+    }
+
+    /*
+    ============================================================
+    PEER DE SAÍDA
+    ============================================================
+    */
+
+    async function createOutgoingPeer(remoteUser) {
+
+        const activeChannel =
+            getActiveChannel();
+
+        const localStream =
+            localScreenStreamRef.current;
+
+        if (
+            !activeChannel ||
+            !localStream ||
+            !remoteUser?.userId
+        ) {
+            return;
+        }
+
+        const remoteUserId =
+            remoteUser.userId;
+
+        if (isCurrentUser(remoteUserId)) {
+            return;
+        }
+
+        if (
+            outgoingPeersRef.current.has(
+                remoteUserId
+            )
+        ) {
+            return;
+        }
+
+        const peerConnection =
+            screenShareService.createPeerConnection();
+
+        outgoingPeersRef.current.set(
+            remoteUserId,
+            peerConnection
+        );
+
+        screenShareService.addStreamToPeer(
+            peerConnection,
+            localStream
+        );
+
+        screenShareService.onIceCandidate(
+            peerConnection,
+            candidate => {
+
+                screenShareService.sendSignal(
+                    activeChannel,
+                    {
+                        type: "ice-candidate",
+                        senderId: userIdRef.current,
+                        targetId: remoteUserId,
+                        candidate
+                    }
+                );
+            }
+        );
+
+        screenShareService.onConnectionStateChange(
+            peerConnection,
+            state => {
+
+                if (
+                    state === "failed" ||
+                    state === "disconnected" ||
+                    state === "closed"
+                ) {
+
+                    closeOutgoingPeer(
+                        remoteUserId
+                    );
+                }
+            }
+        );
+
+        try {
+
+            const offer =
+                await screenShareService.createOffer(
+                    peerConnection
+                );
+
+            await screenShareService.sendSignal(
+                activeChannel,
+                {
+                    type: "offer",
+                    senderId: userIdRef.current,
+                    targetId: remoteUserId,
+                    username: usernameRef.current,
+                    offer
+                }
+            );
+
+        } catch (error) {
+
+            console.error(
+                "[ScreenShare] Erro ao criar offer:",
+                error
+            );
+
+            closeOutgoingPeer(
+                remoteUserId
+            );
+        }
+    }
+
+    /*
+    ============================================================
+    INICIAR COMPARTILHAMENTO
+    ============================================================
+    */
+
+    async function handleStartScreenShare() {
+
+        if (isScreenSharing) {
+            return;
+        }
+
+        const activeChannel =
+            getActiveChannel();
+
+        if (
+            !activeChannel ||
+            !realtimeService.isChannelReady(
+                activeChannel
+            )
+        ) {
+
+            setScreenShareError(
+                "A conexão da sala ainda não está pronta."
+            );
+
+            return;
+        }
+
+        setScreenShareError("");
+
+        try {
+
+            const stream =
+                await screenShareService.startScreenShare();
+
+            localScreenStreamRef.current =
+                stream;
+
+            setIsScreenSharing(true);
+
+            const videoTrack =
+                stream.getVideoTracks()[0];
+
+            if (videoTrack) {
+
+                videoTrack.onended =
+                    () => {
+
+                        handleStopScreenShare();
+
+                    };
+            }
+
+            await screenShareService.sendSignal(
+                activeChannel,
+                {
+                    type: "started",
+                    senderId: userIdRef.current,
+                    username: usernameRef.current
+                }
+            );
+
+            const otherParticipants =
+                participants.filter(
+                    participant =>
+                        participant.userId !==
+                        userIdRef.current
+                );
+
+            for (const participant of otherParticipants) {
+
+                await createOutgoingPeer(
+                    participant
+                );
+            }
+
+        } catch (error) {
+
+            console.error(
+                "[ScreenShare] Erro ao iniciar:",
+                error
+            );
+
+            setScreenShareError(
+                error?.name === "NotAllowedError"
+                    ? "O compartilhamento de tela foi cancelado."
+                    : "Não foi possível iniciar o compartilhamento de tela."
+            );
+
+            localScreenStreamRef.current = null;
+
+            setIsScreenSharing(false);
+        }
+    }
+
+    /*
+    ============================================================
+    PARAR COMPARTILHAMENTO
+    ============================================================
+    */
+
+    async function handleStopScreenShare() {
+
+        const activeChannel =
+            getActiveChannel();
+
+        const stream =
+            localScreenStreamRef.current;
+
+        if (!stream) {
+            return;
+        }
+
+        localScreenStreamRef.current = null;
+
+        setIsScreenSharing(false);
+
+        screenShareService.stopScreenShare(
+            stream
+        );
+
+        outgoingPeersRef.current.forEach(
+            peer => {
+
+                screenShareService.closePeerConnection(
+                    peer
+                );
+
+            }
+        );
+
+        outgoingPeersRef.current.clear();
+
+        if (
+            activeChannel &&
+            realtimeService.isChannelReady(
+                activeChannel
+            )
+        ) {
+
+            await screenShareService.sendSignal(
+                activeChannel,
+                {
+                    type: "stopped",
+                    senderId: userIdRef.current
+                }
+            );
+        }
+    }
+
+    /*
+    ============================================================
+    OFFER RECEBIDA
+    ============================================================
+    */
+
+    async function handleIncomingOffer(signal) {
+
+        const activeChannel =
+            getActiveChannel();
+
+        if (!activeChannel || !signal) {
+            return;
+        }
+
+        if (
+            signal.targetId !==
+            userIdRef.current
+        ) {
+            return;
+        }
+
+        const remoteUserId =
+            signal.senderId;
+
+        closeIncomingPeer(
+            remoteUserId
+        );
+
+        const peerConnection =
+            screenShareService.createPeerConnection();
+
+        incomingPeersRef.current.set(
+            remoteUserId,
+            peerConnection
+        );
+
+        screenShareService.onRemoteStream(
+            peerConnection,
+            stream => {
+
+                setRemoteScreenStream(
+                    stream
+                );
+
+                setRemoteScreenSharer({
+                    userId: remoteUserId,
+                    username:
+                        signal.username ||
+                        "Participante"
+                });
+            }
+        );
+
+        screenShareService.onIceCandidate(
+            peerConnection,
+            candidate => {
+
+                screenShareService.sendSignal(
+                    activeChannel,
+                    {
+                        type: "ice-candidate",
+                        senderId: userIdRef.current,
+                        targetId: remoteUserId,
+                        candidate
+                    }
+                );
+            }
+        );
+
+        screenShareService.onConnectionStateChange(
+            peerConnection,
+            state => {
+
+                if (
+                    state === "failed" ||
+                    state === "disconnected" ||
+                    state === "closed"
+                ) {
+
+                    closeIncomingPeer(
+                        remoteUserId
+                    );
+
+                    setRemoteScreenStream(null);
+
+                    setRemoteScreenSharer(null);
+
+                    setIsPlaying(false);
+                }
+            }
+        );
+
+        try {
+
+            const answer =
+                await screenShareService.createAnswer(
+                    peerConnection,
+                    signal.offer
+                );
+
+            await flushPendingIceCandidates(
+                peerConnection,
+                remoteUserId
+            );
+
+            await screenShareService.sendSignal(
+                activeChannel,
+                {
+                    type: "answer",
+                    senderId: userIdRef.current,
+                    targetId: remoteUserId,
+                    answer
+                }
+            );
+
+        } catch (error) {
+
+            console.error(
+                "[ScreenShare] Erro ao processar offer:",
+                error
+            );
+
+            closeIncomingPeer(
+                remoteUserId
+            );
+        }
+    }
+
+    /*
+    ============================================================
+    ANSWER RECEBIDA
+    ============================================================
+    */
+
+    async function handleIncomingAnswer(signal) {
+
+        if (
+            signal.targetId !==
+            userIdRef.current
+        ) {
+            return;
+        }
+
+        const remoteUserId =
+            signal.senderId;
+
+        const peerConnection =
+            outgoingPeersRef.current.get(
+                remoteUserId
+            );
+
+        if (!peerConnection) {
+            return;
+        }
+
+        try {
+
+            await screenShareService.setRemoteAnswer(
+                peerConnection,
+                signal.answer
+            );
+
+            await flushPendingIceCandidates(
+                peerConnection,
+                remoteUserId
+            );
+
+        } catch (error) {
+
+            console.error(
+                "[ScreenShare] Erro ao aplicar answer:",
+                error
+            );
+        }
+    }
+
+    /*
+    ============================================================
+    ICE RECEBIDO
+    ============================================================
+    */
+
+    async function handleIncomingIceCandidate(signal) {
+
+        if (
+            signal.targetId !==
+            userIdRef.current
+        ) {
+            return;
+        }
+
+        const remoteUserId =
+            signal.senderId;
+
+        const peerConnection =
+            outgoingPeersRef.current.get(
+                remoteUserId
+            ) ||
+            incomingPeersRef.current.get(
+                remoteUserId
+            );
+
+        if (!peerConnection) {
+
+            const pending =
+                pendingIceCandidatesRef.current.get(
+                    remoteUserId
+                ) || [];
+
+            pending.push(
+                signal.candidate
+            );
+
+            pendingIceCandidatesRef.current.set(
+                remoteUserId,
+                pending
+            );
+
+            return;
+        }
+
+        if (!peerConnection.remoteDescription) {
+
+            const pending =
+                pendingIceCandidatesRef.current.get(
+                    remoteUserId
+                ) || [];
+
+            pending.push(
+                signal.candidate
+            );
+
+            pendingIceCandidatesRef.current.set(
+                remoteUserId,
+                pending
+            );
+
+            return;
+        }
+
+        try {
+
+            await screenShareService.addIceCandidate(
+                peerConnection,
+                signal.candidate
+            );
+
+        } catch (error) {
+
+            console.error(
+                "[ScreenShare] Erro ao adicionar ICE:",
+                error
+            );
+        }
+    }
+
+    /*
+    ============================================================
+    SIGNALING
+    ============================================================
+    */
+
+    async function handleScreenShareSignal(signal) {
+
+        if (!signal) {
+            return;
+        }
+
+        if (
+            signal.senderId ===
+            userIdRef.current
+        ) {
+            return;
+        }
+
+        if (
+            signal.targetId &&
+            signal.targetId !==
+            userIdRef.current
+        ) {
+            return;
+        }
+
+        try {
+
+            switch (signal.type) {
+
+                case "started":
+
+                    setRemoteScreenSharer({
+                        userId: signal.senderId,
+                        username:
+                            signal.username ||
+                            "Participante"
+                    });
+
+                    break;
+
+                case "offer":
+
+                    await handleIncomingOffer(
+                        signal
+                    );
+
+                    break;
+
+                case "answer":
+
+                    await handleIncomingAnswer(
+                        signal
+                    );
+
+                    break;
+
+                case "ice-candidate":
+
+                    await handleIncomingIceCandidate(
+                        signal
+                    );
+
+                    break;
+
+                case "stopped":
+
+                    closeIncomingPeer(
+                        signal.senderId
+                    );
+
+                    setRemoteScreenStream(null);
+
+                    setRemoteScreenSharer(null);
+
+                    setIsPlaying(false);
+
+                    break;
+
+                default:
+
+                    console.warn(
+                        "[ScreenShare] Sinal desconhecido:",
+                        signal.type
+                    );
+            }
+
+        } catch (error) {
+
+            console.error(
+                "[ScreenShare] Erro no signaling:",
+                error
+            );
+        }
+    }
+
+    /*
+    ============================================================
+    PARTICIPANTE ENTROU
+    ============================================================
+    */
+
+    async function handleParticipantJoin(payload) {
+
+        if (!localScreenStreamRef.current) {
+            return;
+        }
+
+        const joins =
+            payload?.newPresences || [];
+
+        for (const joinedUser of joins) {
+
+            if (!joinedUser?.userId) {
+                continue;
+            }
+
+            if (
+                joinedUser.userId ===
+                userIdRef.current
+            ) {
+                continue;
+            }
+
+            await createOutgoingPeer(
+                joinedUser
+            );
+        }
+    }
 
     /*
     ============================================================
@@ -259,124 +1392,60 @@ function WatchRoom() {
     ============================================================
     */
 
-    useEffect(
-        () => {
+    useEffect(() => {
 
-            let isActive = true;
+        let isActive = true;
 
+        async function loadRoom() {
 
-            async function loadRoom() {
+            setIsLoading(true);
 
-                setIsLoading(
-                    true
-                );
+            try {
 
+                const foundRoom =
+                    await getRoomById(roomId);
 
-                try {
-
-                    console.log(
-                        "[Supabase] Carregando sala:",
-                        roomId
-                    );
-
-
-                    const foundRoom =
-                        await getRoomById(
-                            roomId
-                        );
-
-
-                    if (!isActive) {
-
-                        return;
-
-                    }
-
-
-                    if (foundRoom) {
-
-                        console.log(
-                            "[Supabase] Sala carregada:",
-                            foundRoom
-                        );
-
-
-                        setRoom(
-                            foundRoom
-                        );
-
-                    } else {
-
-                        console.warn(
-                            "[Supabase] Sala não encontrada:",
-                            roomId
-                        );
-
-
-                        setRoom(
-                            null
-                        );
-
-                    }
-
-                } catch (error) {
-
-                    console.error(
-                        "[Supabase] Erro ao carregar sala:",
-                        error
-                    );
-
-
-                    if (isActive) {
-
-                        setRoom(
-                            null
-                        );
-
-                    }
-
-                } finally {
-
-                    if (isActive) {
-
-                        setIsLoading(
-                            false
-                        );
-
-                    }
-
+                if (!isActive) {
+                    return;
                 }
 
-            }
-
-
-            if (roomId) {
-
-                loadRoom();
-
-            } else {
-
                 setRoom(
-                    null
+                    foundRoom || null
                 );
 
-                setIsLoading(
-                    false
+            } catch (error) {
+
+                console.error(
+                    "[Supabase] Erro ao carregar sala:",
+                    error
                 );
 
+                if (isActive) {
+                    setRoom(null);
+                }
+
+            } finally {
+
+                if (isActive) {
+                    setIsLoading(false);
+                }
             }
+        }
 
+        if (roomId) {
+            loadRoom();
+        } else {
 
-            return () => {
+            setRoom(null);
 
-                isActive = false;
+            setIsLoading(false);
+        }
 
-            };
+        return () => {
+            isActive = false;
+        };
 
-        },
-        [roomId]
-    );
-
+    }, [roomId]);
 
     /*
     ============================================================
@@ -384,379 +1453,262 @@ function WatchRoom() {
     ============================================================
     */
 
-    useEffect(
-        () => {
+    useEffect(() => {
 
-            if (!roomId) {
+        if (!roomId) {
+            return;
+        }
 
-                return;
+        if (isConnectingRef.current) {
+            return;
+        }
 
-            }
+        let isActive = true;
 
+        isConnectingRef.current = true;
 
-            /*
-            ====================================================
-            EVITAR DUPLICAR CONEXÃO
-            ====================================================
-            */
-
-            if (
-                isConnectingRef.current
-            ) {
-
-                console.log(
-                    "[Realtime] Conexão já está em andamento."
-                );
-
-
-                return;
-
-            }
-
-
-            let isActive = true;
-
-
-            isConnectingRef.current =
-                true;
-
-
-            console.log(
-                "[Realtime] Iniciando conexão da sala:",
+        const channel =
+            realtimeService.createRoomChannel(
                 roomId
             );
 
+        channelRef.current = channel;
 
-            const channel =
-                realtimeService.createRoomChannel(
-                    roomId
-                );
+        /*
+        CHAT
+        */
 
+        realtimeService.onChatMessage(
+            channel,
+            message => {
 
-            channelRef.current =
-                channel;
+                if (!isActive || !message) {
+                    return;
+                }
 
+                setMessages(previous => {
 
-            /*
-            ====================================================
-            CHAT
-            ====================================================
-            */
+                    const exists =
+                        previous.some(
+                            item =>
+                                item.id ===
+                                message.id
+                        );
 
-            realtimeService.onChatMessage(
-                channel,
-                message => {
-
-                    if (!isActive) {
-
-                        return;
-
+                    if (exists) {
+                        return previous;
                     }
 
-
-                    if (!message) {
-
-                        return;
-
-                    }
-
-
-                    console.log(
-                        "[Realtime] Chat recebido:",
+                    return [
+                        ...previous,
                         message
-                    );
+                    ];
+                });
+            }
+        );
 
+        /*
+        PRESENÇA
+        */
 
-                    setMessages(
-                        previous => {
+        realtimeService.onPresenceChange(
+            channel,
+            state => {
 
-                            const alreadyExists =
-                                previous.some(
-                                    item =>
-                                        item.id ===
-                                        message.id
-                                );
-
-
-                            if (
-                                alreadyExists
-                            ) {
-
-                                return previous;
-
-                            }
-
-
-                            return [
-
-                                ...previous,
-
-                                message
-
-                            ];
-
-                        }
-                    );
-
+                if (!isActive) {
+                    return;
                 }
-            );
 
+                const users = [];
 
-            /*
-            ====================================================
-            PRESENCE
-            ====================================================
-            */
+                Object.entries(
+                    state || {}
+                ).forEach(
+                    ([key, entries]) => {
 
-            realtimeService.onPresenceChange(
-                channel,
-                state => {
+                        if (
+                            !Array.isArray(entries)
+                        ) {
+                            return;
+                        }
 
-                    if (!isActive) {
+                        entries.forEach(user => {
 
-                        return;
-
-                    }
-
-
-                    console.log(
-                        "[Presence] Estado recebido:",
-                        state
-                    );
-
-
-                    const users = [];
-
-
-                    Object.entries(
-                        state || {}
-                    ).forEach(
-                        ([key, entries]) => {
-
-                            if (
-                                !Array.isArray(
-                                    entries
-                                )
-                            ) {
-
+                            if (!user) {
                                 return;
-
                             }
 
-
-                            entries.forEach(
-                                user => {
-
-                                    if (!user) {
-
-                                        return;
-
-                                    }
-
-
-                                    users.push({
-
-                                        ...user,
-
-                                        presenceKey:
-                                            key
-
-                                    });
-
-                                }
-                            );
-
-                        }
-                    );
-
-
-                    /*
-                    ==============================================
-                    REMOVER DUPLICADOS
-                    ==============================================
-                    */
-
-                    const uniqueUsers =
-                        users.filter(
-                            (
-                                user,
-                                index,
-                                array
-                            ) =>
-                                index ===
-                                array.findIndex(
-                                    item =>
-                                        item.userId ===
-                                        user.userId
-                                )
-                        );
-
-
-                    console.log(
-                        "[Presence] Participantes:",
-                        uniqueUsers
-                    );
-
-
-                    setParticipants(
-                        uniqueUsers
-                    );
-
-                }
-            );
-
-
-            /*
-            ====================================================
-            CONECTAR
-            ====================================================
-            */
-
-            realtimeService
-                .connect(
-                    channel
-                )
-
-                .then(
-                    async () => {
-
-                        if (!isActive) {
-
-                            return;
-
-                        }
-
-
-                        console.log(
-                            "[Realtime] Canal conectado:",
-                            roomId
-                        );
-
-
-                        const currentUser = {
-
-                            userId:
-                                userIdRef.current,
-
-                            username:
-                                usernameRef.current
-
-                        };
-
-
-                        try {
-
-                            await realtimeService.trackPresence(
-                                channel,
-                                currentUser
-                            );
-
-
-                            console.log(
-                                "[Presence] Usuário entrou na sala:",
-                                currentUser
-                            );
-
-                        } catch (error) {
-
-                            console.error(
-                                "[Presence] Erro ao registrar usuário:",
-                                error
-                            );
-
-                        }
-
-                    }
-                )
-
-                .catch(
-                    error => {
-
-                        if (!isActive) {
-
-                            return;
-
-                        }
-
-
-                        console.error(
-                            "[Realtime] Erro ao conectar:",
-                            error
-                        );
-
-                    }
-                )
-
-                .finally(
-                    () => {
-
-                        if (isActive) {
-
-                            isConnectingRef.current =
-                                false;
-
-                        }
-
+                            users.push({
+                                ...user,
+                                presenceKey: key
+                            });
+                        });
                     }
                 );
 
-
-            /*
-            ====================================================
-            CLEANUP
-            ====================================================
-            */
-
-            return () => {
-
-                isActive = false;
-
-
-                isConnectingRef.current =
-                    false;
-
+                const uniqueUsers =
+                    users.filter(
+                        (
+                            user,
+                            index,
+                            array
+                        ) =>
+                            index ===
+                            array.findIndex(
+                                item =>
+                                    item.userId ===
+                                    user.userId
+                            )
+                    );
 
                 setParticipants(
-                    []
+                    uniqueUsers
                 );
+            }
+        );
 
+        /*
+        PARTICIPANTE ENTROU
+        */
 
-                setShowParticipants(
-                    false
-                );
+        realtimeService.onPresenceJoin(
+            channel,
+            payload => {
 
-
-                if (
-                    channelRef.current ===
-                    channel
-                ) {
-
-                    console.log(
-                        "[Realtime] Desconectando canal:",
-                        roomId
-                    );
-
-
-                    realtimeService.disconnect(
-                        channel
-                    );
-
-
-                    channelRef.current =
-                        null;
-
+                if (!isActive) {
+                    return;
                 }
 
-            };
+                handleParticipantJoin(
+                    payload
+                );
+            }
+        );
 
-        },
-        [roomId]
-    );
+        /*
+        SIGNALING
+        */
 
+        screenShareService.onSignal(
+            channel,
+            signal => {
+
+                if (!isActive) {
+                    return;
+                }
+
+                handleScreenShareSignal(
+                    signal
+                );
+            }
+        );
+
+        /*
+        CONECTAR
+        */
+
+        realtimeService
+            .connect(channel)
+            .then(async () => {
+
+                if (!isActive) {
+                    return;
+                }
+
+                const currentUser = {
+                    userId:
+                        userIdRef.current,
+                    username:
+                        usernameRef.current
+                };
+
+                try {
+
+                    await realtimeService.trackPresence(
+                        channel,
+                        currentUser
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "[Presence] Erro:",
+                        error
+                    );
+                }
+
+            })
+            .catch(error => {
+
+                if (!isActive) {
+                    return;
+                }
+
+                console.error(
+                    "[Realtime] Erro ao conectar:",
+                    error
+                );
+
+            })
+            .finally(() => {
+
+                if (isActive) {
+                    isConnectingRef.current =
+                        false;
+                }
+            });
+
+        /*
+        CLEANUP
+        */
+
+        return () => {
+
+            isActive = false;
+
+            isConnectingRef.current =
+                false;
+
+            if (
+                localScreenStreamRef.current
+            ) {
+
+                screenShareService.stopScreenShare(
+                    localScreenStreamRef.current
+                );
+
+                localScreenStreamRef.current =
+                    null;
+            }
+
+            closeAllScreenSharePeers();
+
+            setIsScreenSharing(false);
+
+            setRemoteScreenStream(null);
+
+            setRemoteScreenSharer(null);
+
+            setParticipants([]);
+
+            if (
+                channelRef.current ===
+                channel
+            ) {
+
+                realtimeService.disconnect(
+                    channel
+                );
+
+                channelRef.current = null;
+            }
+        };
+
+    }, [roomId]);
 
     /*
     ============================================================
-    ENVIAR MENSAGEM
+    CHAT
     ============================================================
     */
 
@@ -764,109 +1716,60 @@ function WatchRoom() {
 
         event.preventDefault();
 
-
         const text =
             chatMessage.trim();
 
-
         if (!text) {
-
             return;
-
         }
-
 
         const activeChannel =
             channelRef.current;
 
-
         if (!activeChannel) {
-
-            console.warn(
-                "[Realtime] Canal ainda não está disponível."
-            );
-
-
             return;
-
         }
 
-
         const message = {
-
             id:
                 crypto.randomUUID(),
-
             userId:
                 userIdRef.current,
-
             username:
                 usernameRef.current,
-
             message:
                 text,
-
             timestamp:
                 Date.now()
-
         };
-
-
-        console.log(
-            "[Realtime] Enviando chat:",
-            message
-        );
-
 
         try {
 
-            const result =
-                await realtimeService.sendChatMessage(
-                    activeChannel,
-                    message
-                );
-
-
-            console.log(
-                "[Realtime] Chat enviado:",
-                result
+            await realtimeService.sendChatMessage(
+                activeChannel,
+                message
             );
 
+            setMessages(previous => {
 
-            setMessages(
-                previous => {
+                const exists =
+                    previous.some(
+                        item =>
+                            item.id ===
+                            message.id
+                    );
 
-                    const alreadyExists =
-                        previous.some(
-                            item =>
-                                item.id ===
-                                message.id
-                        );
-
-
-                    if (
-                        alreadyExists
-                    ) {
-
-                        return previous;
-
-                    }
-
-
-                    return [
-
-                        ...previous,
-
-                        message
-
-                    ];
-
+                if (exists) {
+                    return previous;
                 }
-            );
 
+                return [
+                    ...previous,
+                    message
+                ];
+            });
 
             setChatMessage("");
-
 
         } catch (error) {
 
@@ -874,26 +1777,18 @@ function WatchRoom() {
                 "[Realtime] Erro ao enviar chat:",
                 error
             );
-
         }
-
     }
-
 
     /*
     ============================================================
-    VOLTAR PARA HOME
+    NAVEGAÇÃO
     ============================================================
     */
 
     function handleGoHome() {
-
-        navigate(
-            "/"
-        );
-
+        navigate("/");
     }
-
 
     /*
     ============================================================
@@ -904,40 +1799,14 @@ function WatchRoom() {
     if (isLoading) {
 
         return (
-
-            <main
-                className={
-                    styles.page
-                }
-            >
-
-                <div
-                    className={
-                        styles.loading
-                    }
-                >
-
-                    <span
-                        className={
-                            styles.spinner
-                        }
-                    >
-                        ◌
-                    </span>
-
-
-                    <p>
-                        Carregando sala...
-                    </p>
-
+            <main className={styles.page}>
+                <div className={styles.loading}>
+                    <div className={styles.loadingSpinner} />
+                    <p>Entrando na sala...</p>
                 </div>
-
             </main>
-
         );
-
     }
-
 
     /*
     ============================================================
@@ -948,59 +1817,30 @@ function WatchRoom() {
     if (!room) {
 
         return (
-
-            <main
-                className={
-                    styles.page
-                }
-            >
-
-                <div
-                    className={
-                        styles.notFound
-                    }
-                >
-
-                    <span
-                        className={
-                            styles.notFoundIcon
-                        }
-                    >
+            <main className={styles.page}>
+                <div className={styles.notFound}>
+                    <div className={styles.notFoundIcon}>
                         🎬
-                    </span>
+                    </div>
 
-
-                    <h1>
-                        Sala não encontrada
-                    </h1>
-
+                    <h1>Sala não encontrada</h1>
 
                     <p>
                         A sala que você tentou acessar
                         não existe ou foi removida.
                     </p>
 
-
                     <button
                         type="button"
-                        className={
-                            styles.primaryButton
-                        }
-                        onClick={
-                            handleGoHome
-                        }
+                        className={styles.primaryButton}
+                        onClick={handleGoHome}
                     >
                         Voltar para o início
                     </button>
-
                 </div>
-
             </main>
-
         );
-
     }
-
 
     /*
     ============================================================
@@ -1008,161 +1848,115 @@ function WatchRoom() {
     ============================================================
     */
 
-    return (
+    const currentUser =
+        participants.find(
+            participant =>
+                participant.userId ===
+                userIdRef.current
+        );
 
-        <main
-            className={
-                styles.page
-            }
-        >
+    const participantCount =
+        participants.length;
+
+    return (
+        <main className={styles.page}>
 
             {/* ==================================================
-                HEADER
+                TOPBAR
             ================================================== */}
 
-            <header
-                className={
-                    styles.header
-                }
-            >
+            <header className={styles.topbar}>
 
-                <div
-                    className={
-                        styles.brand
-                    }
-                >
+                <div className={styles.topbarLeft}>
 
-                    <span
-                        className={
-                            styles.brandIcon
-                        }
-                    >
-                        🎬
-                    </span>
+                    <div className={styles.brand}>
 
+                        <div className={styles.brandLogo}>
+                            ▶
+                        </div>
 
-                    <span>
-                        WatchParty
-                    </span>
+                        <div className={styles.brandText}>
+                            WatchParty
+                        </div>
 
-                </div>
+                    </div>
 
+                    <div className={styles.topbarDivider} />
 
-                <div
-                    className={
-                        styles.roomInfo
-                    }
-                >
+                    <div className={styles.roomTitle}>
 
-                    <span
-                        className={
-                            styles.roomName
-                        }
-                    >
-                        {room.name}
-                    </span>
+                        <span className={styles.roomTitleIcon}>
+                            #
+                        </span>
 
+                        <span>
+                            {room.name}
+                        </span>
 
-                    <span
-                        className={
-                            styles.roomMembers
-                        }
-                    >
-                        👥 {participants.length}/{room.maxUsers}
-                    </span>
+                    </div>
 
                 </div>
 
+                <div className={styles.topbarCenter}>
 
-                <div
-                    className={
-                        styles.roomActions
-                    }
-                >
+                    <div className={styles.connectionStatus}>
+                        <span className={styles.connectionDot} />
+                        Conectado
+                    </div>
+
+                    <div className={styles.memberCount}>
+                        <span>●</span>
+                        {participantCount}/{room.maxUsers}
+                    </div>
+
+                </div>
+
+                <div className={styles.topbarActions}>
 
                     <button
                         type="button"
-                        className={`${styles.shareButton} ${
+                        className={`${styles.topbarButton} ${
                             copyStatus === "success"
-                                ? styles.copySuccess
-                                : copyStatus === "error"
-                                    ? styles.copyError
-                                    : ""
+                                ? styles.successButton
+                                : ""
                         }`}
-                        onClick={
-                            handleCopyRoomLink
-                        }
-                        aria-live="polite"
+                        onClick={handleCopyRoomLink}
                     >
 
-                        <span
-                            aria-hidden="true"
-                        >
-                            {
-                                copyStatus === "success"
-                                    ? "✓"
-                                    : copyStatus === "error"
-                                        ? "!"
-                                        : "🔗"
-                            }
+                        <span className={styles.buttonIcon}>
+                            {copyStatus === "success"
+                                ? "✓"
+                                : "🔗"}
                         </span>
 
-
-                        <span
-                            className={
-                                styles.shareButtonText
-                            }
-                        >
-                            {
-                                copyStatus === "success"
-                                    ? "Link copiado!"
-                                    : copyStatus === "error"
-                                        ? "Não foi possível copiar"
-                                        : "Copiar link"
-                            }
+                        <span className={styles.desktopOnly}>
+                            {copyStatus === "success"
+                                ? "Link copiado"
+                                : "Convidar"}
                         </span>
 
                     </button>
 
-
                     {canNativeShare && (
-
                         <button
                             type="button"
-                            className={
-                                styles.shareButton
-                            }
-                            onClick={
-                                handleNativeShare
-                            }
+                            className={styles.topbarButton}
+                            onClick={handleNativeShare}
                         >
-
-                            <span
-                                aria-hidden="true"
-                            >
-                                📤
+                            <span className={styles.buttonIcon}>
+                                ↗
                             </span>
 
-
-                            <span
-                                className={
-                                    styles.shareButtonText
-                                }
-                            >
+                            <span className={styles.desktopOnly}>
                                 Compartilhar
                             </span>
-
                         </button>
-
                     )}
-
 
                     <button
                         type="button"
-                        className={
-                            styles.headerButton
-                        }
-                        aria-label="Configurações da sala"
+                        className={styles.iconButton}
+                        aria-label="Configurações"
                     >
                         ⚙
                     </button>
@@ -1171,207 +1965,441 @@ function WatchRoom() {
 
             </header>
 
-
             {/* ==================================================
-                WORKSPACE
+                LAYOUT PRINCIPAL
             ================================================== */}
 
-            <div
-                className={
-                    styles.workspace
-                }
-            >
+            <div className={styles.layout}>
 
                 {/* ==================================================
-                    ÁREA DE CONTEÚDO
+                    SIDEBAR ESQUERDA
                 ================================================== */}
 
-                <section
-                    className={
-                        styles.playerSection
-                    }
-                >
+                <aside className={styles.leftSidebar}>
 
-                    <div
-                        className={
-                            styles.videoComingSoon
-                        }
-                    >
+                    <div className={styles.sidebarHeader}>
 
-                        <div
-                            className={
-                                styles.videoComingSoonIcon
-                            }
-                        >
-                            🎬
-                        </div>
-
-
-                        <div
-                            className={
-                                styles.videoComingSoonContent
-                            }
-                        >
-
-                            <span
-                                className={
-                                    styles.videoComingSoonBadge
-                                }
-                            >
-                                EM DESENVOLVIMENTO
+                        <div>
+                            <span className={styles.sidebarTitle}>
+                                PARTICIPANTES
                             </span>
 
+                            <span className={styles.sidebarCount}>
+                                {participantCount}
+                            </span>
+                        </div>
 
-                            <h1>
-                                Reprodução de vídeo
-                            </h1>
+                    </div>
 
+                    <div className={styles.participantsList}>
 
-                            <p>
-                                Este recurso está sendo desenvolvido
-                                e chegará em breve ao WatchParty.
-                            </p>
+                        {participants.length === 0 ? (
 
+                            <div className={styles.emptyParticipants}>
+                                <span>👥</span>
+                                <p>
+                                    Ninguém está na sala.
+                                </p>
+                            </div>
+
+                        ) : (
+
+                            participants.map(
+                                participant => {
+
+                                    const isUser =
+                                        participant.userId ===
+                                        userIdRef.current;
+
+                                    const isSharing =
+                                        remoteScreenSharer?.userId ===
+                                        participant.userId;
+
+                                    const initial =
+                                        participant.username
+                                            ?.charAt(0)
+                                            ?.toUpperCase() ||
+                                        "U";
+
+                                    return (
+                                        <div
+                                            key={participant.userId}
+                                            className={styles.participant}
+                                        >
+
+                                            <div
+                                                className={
+                                                    styles.avatarWrapper
+                                                }
+                                            >
+
+                                                <div
+                                                    className={
+                                                        styles.avatar
+                                                    }
+                                                >
+                                                    {initial}
+                                                </div>
+
+                                                <span
+                                                    className={
+                                                        styles.onlineIndicator
+                                                    }
+                                                />
+
+                                            </div>
+
+                                            <div
+                                                className={
+                                                    styles.participantDetails
+                                                }
+                                            >
+
+                                                <div
+                                                    className={
+                                                        styles.participantName
+                                                    }
+                                                >
+
+                                                    <span>
+                                                        {
+                                                            participant.username
+                                                        }
+                                                    </span>
+
+                                                    {isUser && (
+                                                        <span
+                                                            className={
+                                                                styles.youBadge
+                                                            }
+                                                        >
+                                                            Você
+                                                        </span>
+                                                    )}
+
+                                                </div>
+
+                                                {isSharing && (
+                                                    <span
+                                                        className={
+                                                            styles.streamingLabel
+                                                        }
+                                                    >
+                                                        🖥 Compartilhando tela
+                                                    </span>
+                                                )}
+
+                                            </div>
+
+                                        </div>
+                                    );
+                                }
+                            )
+                        )}
+
+                    </div>
+
+                    <div className={styles.currentUser}>
+
+                        <div className={styles.currentUserAvatar}>
+                            {
+                                currentUser?.username
+                                    ?.charAt(0)
+                                    ?.toUpperCase()
+                                || "U"
+                            }
 
                             <span
                                 className={
-                                    styles.videoComingSoonDescription
+                                    styles.currentUserStatus
                                 }
-                            >
-                                A reprodução por link externo está
-                                temporariamente desativada. Estamos
-                                preparando uma nova experiência para
-                                assistir juntos.
+                            />
+                        </div>
+
+                        <div className={styles.currentUserInfo}>
+
+                            <strong>
+                                {usernameRef.current}
+                            </strong>
+
+                            <span>
+                                Online
                             </span>
 
                         </div>
 
                     </div>
 
-                </section>
-
+                </aside>
 
                 {/* ==================================================
-                    CHAT
+                    ÁREA CENTRAL
                 ================================================== */}
 
-                <aside
-                    className={
-                        styles.chat
-                    }
-                >
-
-                    {/* ==================================================
-                        HEADER DO CHAT
-                    ================================================== */}
+                <section className={styles.mainArea}>
 
                     <div
-                        className={
-                            styles.chatHeader
+                        ref={playerContainerRef}
+                        className={styles.screenArea}
+                        onMouseMove={resetControlsTimeout}
+                        onMouseEnter={() =>
+                            setShowControls(true)
                         }
                     >
 
-                        {!showParticipants ? (
+                        {remoteScreenStream ? (
 
-                            <div
-                                className={
-                                    styles.chatHeaderInfo
-                                }
-                            >
+                            <>
 
-                                <strong>
-                                    Chat
-                                </strong>
-
-
-                                <button
-                                    type="button"
+                                <video
+                                    ref={remoteVideoRef}
+                                    autoPlay
+                                    muted
+                                    playsInline
                                     className={
-                                        styles.chatParticipantsButton
+                                        styles.screenVideo
                                     }
-                                    onClick={() =>
-                                        setShowParticipants(
-                                            true
-                                        )
+                                    onPlay={() =>
+                                        setIsPlaying(true)
                                     }
-                                    aria-label="Ver participantes"
+                                    onPause={() =>
+                                        setIsPlaying(false)
+                                    }
+                                />
+
+                                {/* TRANSMISSOR */}
+
+                                <div
+                                    className={
+                                        styles.streamInfo
+                                    }
                                 >
 
-                                    <span>
-                                        {
-                                            participants.length
-                                        }{" "}
-
-                                        {
-                                            participants.length === 1
-                                                ? "participante"
-                                                : "participantes"
+                                    <div
+                                        className={
+                                            styles.liveDot
                                         }
+                                    />
+
+                                    <span>
+                                        AO VIVO
                                     </span>
 
-
-                                    <span
+                                    <div
                                         className={
-                                            styles.chatHeaderArrow
+                                            styles.streamInfoDivider
+                                        }
+                                    />
+
+                                    <strong>
+                                        {
+                                            remoteScreenSharer?.username ||
+                                            "Participante"
+                                        }
+                                    </strong>
+
+                                    <span>
+                                        está compartilhando a tela
+                                    </span>
+
+                                </div>
+
+                                {/* CONTROLES */}
+
+                                <div
+                                    className={`${styles.playerControls} ${
+                                        showControls
+                                            ? styles.playerControlsVisible
+                                            : ""
+                                    }`}
+                                >
+
+                                    <div
+                                        className={
+                                            styles.controlsInner
                                         }
                                     >
-                                        →
-                                    </span>
 
-                                </button>
+                                        <button
+                                            type="button"
+                                            className={
+                                                styles.playerButton
+                                            }
+                                            onClick={
+                                                handleTogglePlay
+                                            }
+                                            aria-label={
+                                                isPlaying
+                                                    ? "Pausar"
+                                                    : "Reproduzir"
+                                            }
+                                        >
+                                            {isPlaying
+                                                ? "❚❚"
+                                                : "▶"}
+                                        </button>
 
-                            </div>
+                                        <button
+                                            type="button"
+                                            className={
+                                                styles.playerButton
+                                            }
+                                            onClick={
+                                                handleToggleMute
+                                            }
+                                            aria-label="Som"
+                                        >
+                                            {isMuted || volume === 0
+                                                ? "🔇"
+                                                : "🔊"}
+                                        </button>
+
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            value={
+                                                isMuted
+                                                    ? 0
+                                                    : volume
+                                            }
+                                            onChange={
+                                                handleVolumeChange
+                                            }
+                                            className={
+                                                styles.volumeSlider
+                                            }
+                                            aria-label="Volume"
+                                        />
+
+                                        <div
+                                            className={
+                                                styles.controlsSpacer
+                                            }
+                                        />
+
+                                        {document.pictureInPictureEnabled && (
+                                            <button
+                                                type="button"
+                                                className={`${styles.playerButton} ${
+                                                    isPictureInPicture
+                                                        ? styles.activeControl
+                                                        : ""
+                                                }`}
+                                                onClick={
+                                                    handleTogglePictureInPicture
+                                                }
+                                                aria-label="Picture-in-Picture"
+                                            >
+                                                ▣
+                                            </button>
+                                        )}
+
+                                        <button
+                                            type="button"
+                                            className={
+                                                styles.playerButton
+                                            }
+                                            onClick={
+                                                handleToggleFullscreen
+                                            }
+                                            aria-label="Tela cheia"
+                                        >
+                                            {isFullscreen
+                                                ? "⛶"
+                                                : "⛶"}
+                                        </button>
+
+                                        {isScreenSharing && (
+                                            <button
+                                                type="button"
+                                                className={
+                                                    styles.stopButton
+                                                }
+                                                onClick={
+                                                    handleStopScreenShare
+                                                }
+                                            >
+                                                ■
+                                                <span>
+                                                    Parar transmissão
+                                                </span>
+                                            </button>
+                                        )}
+
+                                    </div>
+
+                                </div>
+
+                            </>
 
                         ) : (
 
                             <div
                                 className={
-                                    styles.participantsHeader
+                                    styles.noStream
                                 }
                             >
 
-                                <button
-                                    type="button"
-                                    className={
-                                        styles.participantsBackButton
-                                    }
-                                    onClick={() =>
-                                        setShowParticipants(
-                                            false
-                                        )
-                                    }
-                                    aria-label="Voltar para o chat"
-                                >
-                                    ←
-                                </button>
-
-
                                 <div
                                     className={
-                                        styles.participantsTitle
+                                        styles.noStreamIcon
                                     }
                                 >
-
-                                    <strong>
-                                        Participantes
-                                    </strong>
-
-
-                                    <span>
-
-                                        {
-                                            participants.length
-                                        }{" "}
-
-                                        {
-                                            participants.length === 1
-                                                ? "pessoa"
-                                                : "pessoas"
-                                        }
-
-                                    </span>
-
+                                    🖥
                                 </div>
+
+                                <h1>
+                                    Ninguém está compartilhando a tela
+                                </h1>
+
+                                <p>
+                                    Compartilhe sua tela para que
+                                    todos na sala possam assistir
+                                    junto com você.
+                                </p>
+
+                                {isScreenSharing ? (
+
+                                    <button
+                                        type="button"
+                                        className={
+                                            styles.shareScreenButton
+                                        }
+                                        onClick={
+                                            handleStopScreenShare
+                                        }
+                                    >
+                                        <span>■</span>
+                                        Parar compartilhamento
+                                    </button>
+
+                                ) : (
+
+                                    <button
+                                        type="button"
+                                        className={
+                                            styles.shareScreenButton
+                                        }
+                                        onClick={
+                                            handleStartScreenShare
+                                        }
+                                    >
+                                        <span>🖥</span>
+                                        Compartilhar minha tela
+                                    </button>
+                                )}
+
+                                {screenShareError && (
+                                    <div
+                                        className={
+                                            styles.screenError
+                                        }
+                                    >
+                                        {screenShareError}
+                                    </div>
+                                )}
 
                             </div>
 
@@ -1379,307 +2407,446 @@ function WatchRoom() {
 
                     </div>
 
-
                     {/* ==================================================
-                        CONTEÚDO
+                        BARRA INFERIOR
                     ================================================== */}
+
+                    <div className={styles.bottomBar}>
+
+                        <div className={styles.bottomLeft}>
+
+                            <button
+                                type="button"
+                                className={
+                                    styles.bottomControl
+                                }
+                                aria-label="Microfone"
+                            >
+                                🎙
+                            </button>
+
+                            <button
+                                type="button"
+                                className={
+                                    styles.bottomControl
+                                }
+                                aria-label="Áudio"
+                            >
+                                🔊
+                            </button>
+
+                            <button
+                                type="button"
+                                className={
+                                    styles.bottomControl
+                                }
+                                aria-label="Câmera"
+                            >
+                                📹
+                            </button>
+
+                        </div>
+
+                        <div className={styles.bottomCenter}>
+
+                            <button
+                                type="button"
+                                className={`${styles.bottomMainControl} ${
+                                    isScreenSharing
+                                        ? styles.bottomMainControlActive
+                                        : ""
+                                }`}
+                                onClick={
+                                    isScreenSharing
+                                        ? handleStopScreenShare
+                                        : handleStartScreenShare
+                                }
+                            >
+
+                                <span>
+                                    {isScreenSharing
+                                        ? "■"
+                                        : "🖥"}
+                                </span>
+
+                                <span>
+                                    {isScreenSharing
+                                        ? "Parar transmissão"
+                                        : "Compartilhar tela"}
+                                </span>
+
+                            </button>
+
+                        </div>
+
+                        <div className={styles.bottomRight}>
+
+                            <button
+                                type="button"
+                                className={
+                                    styles.bottomControl
+                                }
+                                onClick={() =>
+                                    setShowParticipants(
+                                        previous =>
+                                            !previous
+                                    )
+                                }
+                                aria-label="Participantes"
+                            >
+                                👥
+                            </button>
+
+                            <button
+                                type="button"
+                                className={
+                                    styles.bottomControl
+                                }
+                                onClick={() =>
+                                    document.pictureInPictureEnabled &&
+                                    handleTogglePictureInPicture()
+                                }
+                                aria-label="Picture-in-Picture"
+                            >
+                                ▣
+                            </button>
+
+                            <button
+                                type="button"
+                                className={
+                                    styles.bottomControl
+                                }
+                                onClick={
+                                    handleToggleFullscreen
+                                }
+                                aria-label="Tela cheia"
+                            >
+                                ⛶
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+                {/* ==================================================
+                    CHAT
+                ================================================== */}
+
+                <aside className={styles.chatSidebar}>
+
+                    <div className={styles.chatHeader}>
+
+                        <div className={styles.chatHeaderTitle}>
+
+                            <span className={styles.chatHash}>
+                                #
+                            </span>
+
+                            <strong>
+                                chat
+                            </strong>
+
+                        </div>
+
+                        <button
+                            type="button"
+                            className={
+                                styles.chatHeaderButton
+                            }
+                            onClick={() =>
+                                setShowParticipants(
+                                    previous =>
+                                        !previous
+                                )
+                            }
+                            aria-label="Participantes"
+                        >
+                            👥
+                        </button>
+
+                    </div>
 
                     {showParticipants ? (
 
                         <div
                             className={
-                                styles.participantsList
+                                styles.chatParticipantsView
                             }
                         >
 
-                            {participants.length === 0 ? (
+                            <div
+                                className={
+                                    styles.chatParticipantsTitle
+                                }
+                            >
+                                PARTICIPANTES — {participantCount}
+                            </div>
 
-                                <div
-                                    className={
-                                        styles.emptyParticipants
-                                    }
-                                >
+                            {participants.map(
+                                participant => {
 
-                                    <span>
-                                        👥
-                                    </span>
+                                    const initial =
+                                        participant.username
+                                            ?.charAt(0)
+                                            ?.toUpperCase()
+                                        || "U";
 
-
-                                    <p>
-                                        Nenhum participante encontrado.
-                                    </p>
-
-                                </div>
-
-                            ) : (
-
-                                participants.map(
-                                    participant => {
-
-                                        const isCurrentUser =
-                                            participant.userId ===
-                                            userIdRef.current;
-
-
-                                        return (
+                                    return (
+                                        <div
+                                            key={
+                                                participant.userId
+                                            }
+                                            className={
+                                                styles.chatParticipant
+                                            }
+                                        >
 
                                             <div
-                                                key={
-                                                    participant.userId
-                                                }
                                                 className={
-                                                    styles.participantItem
+                                                    styles.chatParticipantAvatar
                                                 }
                                             >
+                                                {initial}
 
-                                                <div
-                                                    className={
-                                                        styles.participantAvatar
-                                                    }
-                                                >
+                                                <span />
+                                            </div>
 
+                                            <div>
+
+                                                <strong>
                                                     {
                                                         participant.username
-                                                            ?.charAt(0)
-                                                            ?.toUpperCase()
-                                                        || "U"
                                                     }
+                                                </strong>
 
-                                                </div>
-
-
-                                                <div
-                                                    className={
-                                                        styles.participantInfo
-                                                    }
-                                                >
-
-                                                    <strong>
-
-                                                        {
-                                                            participant.username
-                                                        }
-
-
-                                                        {isCurrentUser && (
-
-                                                            <span
-                                                                className={
-                                                                    styles.youLabel
-                                                                }
-                                                            >
-                                                                Você
-                                                            </span>
-
-                                                        )}
-
-                                                    </strong>
-
-
-                                                    <span>
-                                                        ● Online
-                                                    </span>
-
-                                                </div>
+                                                <small>
+                                                    Online
+                                                </small>
 
                                             </div>
 
-                                        );
-
-                                    }
-                                )
-
+                                        </div>
+                                    );
+                                }
                             )}
 
                         </div>
 
                     ) : (
 
-                        <div
-                            className={
-                                styles.chatMessages
-                            }
-                        >
+                        <>
 
-                            {messages.length === 0 ? (
+                            <div
+                                className={
+                                    styles.chatMessages
+                                }
+                            >
 
-                                <div
-                                    className={
-                                        styles.emptyChat
-                                    }
-                                >
+                                {messages.length === 0 ? (
 
-                                    <span>
-                                        💬
-                                    </span>
+                                    <div
+                                        className={
+                                            styles.emptyChat
+                                        }
+                                    >
 
+                                        <div
+                                            className={
+                                                styles.emptyChatIcon
+                                            }
+                                        >
+                                            #
+                                        </div>
 
-                                    <p>
-                                        Nenhuma mensagem ainda.
-                                    </p>
+                                        <h2>
+                                            Bem-vindo ao chat!
+                                        </h2>
 
+                                        <p>
+                                            Este é o começo da
+                                            conversa nesta sala.
+                                        </p>
 
-                                    <small>
-                                        Comece a conversa!
-                                    </small>
+                                    </div>
 
-                                </div>
+                                ) : (
 
-                            ) : (
+                                    messages.map(
+                                        message => {
 
-                                messages.map(
-                                    message => {
+                                            const isOwn =
+                                                message.userId ===
+                                                userIdRef.current;
 
-                                        const isOwnMessage =
-                                            message.userId ===
-                                            userIdRef.current;
-
-
-                                        return (
-
-                                            <div
-                                                key={
-                                                    message.id
-                                                }
-                                                className={`
-                                                    ${styles.chatMessage}
-                                                    ${
-                                                        isOwnMessage
-                                                            ? styles.chatMessageOwn
-                                                            : ""
-                                                    }
-                                                `}
-                                            >
-
+                                            return (
                                                 <div
-                                                    className={
-                                                        styles.chatMessageHeader
+                                                    key={
+                                                        message.id
                                                     }
+                                                    className={`${styles.chatMessage} ${
+                                                        isOwn
+                                                            ? styles.ownMessage
+                                                            : ""
+                                                    }`}
                                                 >
 
-                                                    <strong>
+                                                    <div
+                                                        className={
+                                                            styles.messageAvatar
+                                                        }
+                                                    >
                                                         {
                                                             message.username
+                                                                ?.charAt(0)
+                                                                ?.toUpperCase()
+                                                            || "U"
                                                         }
-                                                    </strong>
+                                                    </div>
 
-
-                                                    <span>
-                                                        {
-                                                            formatMessageTime(
-                                                                message.timestamp
-                                                            )
+                                                    <div
+                                                        className={
+                                                            styles.messageContent
                                                         }
-                                                    </span>
+                                                    >
+
+                                                        <div
+                                                            className={
+                                                                styles.messageMeta
+                                                            }
+                                                        >
+
+                                                            <strong>
+                                                                {
+                                                                    message.username
+                                                                }
+                                                            </strong>
+
+                                                            <span>
+                                                                {
+                                                                    formatMessageTime(
+                                                                        message.timestamp
+                                                                    )
+                                                                }
+                                                            </span>
+
+                                                        </div>
+
+                                                        <p>
+                                                            {
+                                                                message.message
+                                                            }
+                                                        </p>
+
+                                                    </div>
 
                                                 </div>
+                                            );
+                                        }
+                                    )
+                                )}
 
+                            </div>
 
-                                                <p
-                                                    className={
-                                                        styles.chatMessageText
-                                                    }
-                                                >
-                                                    {
-                                                        message.message
-                                                    }
-                                                </p>
+                            <form
+                                className={
+                                    styles.chatForm
+                                }
+                                onSubmit={
+                                    handleSendMessage
+                                }
+                            >
 
-                                            </div>
-
-                                        );
-
-                                    }
-                                )
-
-                            )}
-
-                        </div>
-
-                    )}
-
-
-                    {/* ==================================================
-                        FORMULÁRIO DO CHAT
-                    ================================================== */}
-
-                    {!showParticipants && (
-
-                        <form
-                            className={
-                                styles.chatForm
-                            }
-                            onSubmit={
-                                handleSendMessage
-                            }
-                        >
-
-                            <input
-                                type="text"
-                                placeholder="Digite uma mensagem..."
-                                aria-label="Mensagem"
-                                value={chatMessage}
-                                onChange={
-                                    event =>
+                                <input
+                                    type="text"
+                                    value={chatMessage}
+                                    onChange={event =>
                                         setChatMessage(
                                             event.target.value
                                         )
-                                }
-                                maxLength={500}
-                            />
+                                    }
+                                    placeholder={
+                                        `Conversar em #chat`
+                                    }
+                                    maxLength={500}
+                                    aria-label="Mensagem"
+                                />
 
+                                <button
+                                    type="submit"
+                                    disabled={
+                                        !chatMessage.trim()
+                                    }
+                                    aria-label="Enviar mensagem"
+                                >
+                                    ➤
+                                </button>
 
-                            <button
-                                type="submit"
-                                aria-label="Enviar mensagem"
-                                disabled={
-                                    !chatMessage.trim()
-                                }
-                            >
-                                ➤
-                            </button>
+                            </form>
 
-                        </form>
-
+                        </>
                     )}
 
                 </aside>
 
             </div>
 
+            {/* ==================================================
+                STATUS LOCAL
+            ================================================== */}
+
+            {isScreenSharing && (
+                <div className={styles.screenSharingToast}>
+
+                    <span
+                        className={
+                            styles.toastIndicator
+                        }
+                    />
+
+                    <span>
+                        Você está compartilhando sua tela
+                    </span>
+
+                    <button
+                        type="button"
+                        onClick={
+                            handleStopScreenShare
+                        }
+                    >
+                        Parar
+                    </button>
+
+                </div>
+            )}
+
         </main>
-
     );
-
 }
 
 
 /*
 ============================================================
-FORMATAR HORÁRIO DA MENSAGEM
+HORÁRIO DA MENSAGEM
 ============================================================
 */
 
 function formatMessageTime(timestamp) {
 
     if (!timestamp) {
-
         return "";
-
     }
 
-
-    return new Date(
-        timestamp
-    ).toLocaleTimeString(
+    return new Date(timestamp).toLocaleTimeString(
         "pt-BR",
         {
             hour: "2-digit",
             minute: "2-digit"
         }
     );
-
 }
 
 
 export default WatchRoom;
+

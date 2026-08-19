@@ -1,0 +1,683 @@
+.container {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+
+.player {
+    position: relative;
+
+    width: 100%;
+    height: 100%;
+    min-height: 420px;
+
+    overflow: hidden;
+
+    background:
+        radial-gradient(
+            circle at center,
+            #171717 0%,
+            #080808 70%
+        );
+
+    border-radius: 1rem;
+
+    isolation: isolate;
+
+    cursor: default;
+}
+
+
+.remoteVideo {
+    position: absolute;
+
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    object-fit: contain;
+
+    background: #000;
+
+    z-index: 1;
+}
+
+
+.emptyState {
+    position: absolute;
+
+    inset: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+    justify-content: center;
+
+    gap: 1rem;
+
+    padding: 2rem;
+
+    text-align: center;
+
+    color: #fff;
+
+    z-index: 2;
+}
+
+
+.emptyIcon {
+    width: 72px;
+    height: 72px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 20px;
+
+    background:
+        rgba(255, 255, 255, 0.06);
+
+    border:
+        1px solid rgba(255, 255, 255, 0.08);
+
+    font-size: 2rem;
+}
+
+
+.badge {
+    display: inline-flex;
+
+    align-items: center;
+
+    padding:
+        0.4rem 0.75rem;
+
+    border-radius:
+        999px;
+
+    background:
+        rgba(255, 255, 255, 0.07);
+
+    border:
+        1px solid rgba(255, 255, 255, 0.08);
+
+    color:
+        rgba(255, 255, 255, 0.65);
+
+    font-size:
+        0.7rem;
+
+    font-weight:
+        700;
+
+    letter-spacing:
+        0.08em;
+}
+
+
+.emptyState h1 {
+    margin: 0;
+
+    font-size:
+        clamp(1.3rem, 2vw, 2rem);
+
+    font-weight:
+        700;
+}
+
+
+.emptyState p {
+    max-width:
+        520px;
+
+    margin: 0;
+
+    color:
+        rgba(255, 255, 255, 0.58);
+
+    line-height:
+        1.6;
+}
+
+
+.startButton {
+    display: inline-flex;
+
+    align-items: center;
+    justify-content: center;
+
+    gap: 0.6rem;
+
+    margin-top:
+        0.5rem;
+
+    padding:
+        0.85rem 1.2rem;
+
+    border: none;
+
+    border-radius:
+        0.75rem;
+
+    background:
+        #fff;
+
+    color:
+        #111;
+
+    font-size:
+        0.95rem;
+
+    font-weight:
+        700;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        opacity 0.2s ease;
+}
+
+
+.startButton:hover {
+    transform:
+        translateY(-2px);
+}
+
+
+.startButton:active {
+    transform:
+        translateY(0);
+}
+
+
+.error {
+    max-width:
+        500px;
+
+    padding:
+        0.7rem 1rem;
+
+    border-radius:
+        0.7rem;
+
+    background:
+        rgba(255, 70, 70, 0.12);
+
+    border:
+        1px solid rgba(255, 70, 70, 0.2);
+
+    color:
+        #ff8b8b;
+
+    font-size:
+        0.85rem;
+}
+
+
+/*
+============================================================
+PREVIEW LOCAL
+============================================================
+*/
+
+.localPreview {
+    position: absolute;
+
+    right: 1.2rem;
+    bottom: 5.5rem;
+
+    width: 190px;
+    aspect-ratio: 16 / 10;
+
+    overflow: hidden;
+
+    border-radius:
+        0.8rem;
+
+    background:
+        #000;
+
+    border:
+        1px solid rgba(255, 255, 255, 0.15);
+
+    box-shadow:
+        0 10px 30px rgba(0, 0, 0, 0.5);
+
+    z-index: 8;
+}
+
+
+.localPreview video {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+}
+
+
+.localPreviewLabel {
+    position: absolute;
+
+    left: 0.5rem;
+    bottom: 0.5rem;
+
+    padding:
+        0.25rem 0.5rem;
+
+    border-radius:
+        0.4rem;
+
+    background:
+        rgba(0, 0, 0, 0.7);
+
+    color: #fff;
+
+    font-size:
+        0.7rem;
+
+    font-weight:
+        600;
+}
+
+
+/*
+============================================================
+INFORMAÇÃO DO SHARER
+============================================================
+*/
+
+.sharerInfo {
+    position: absolute;
+
+    top: 1rem;
+    left: 1rem;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 0.5rem;
+
+    padding:
+        0.55rem 0.8rem;
+
+    border-radius:
+        0.6rem;
+
+    background:
+        rgba(0, 0, 0, 0.7);
+
+    backdrop-filter:
+        blur(12px);
+
+    color: #fff;
+
+    font-size:
+        0.8rem;
+
+    z-index: 7;
+}
+
+
+.liveIndicator {
+    width: 8px;
+    height: 8px;
+
+    border-radius:
+        50%;
+
+    background:
+        #ff4d4d;
+
+    box-shadow:
+        0 0 10px
+        rgba(255, 77, 77, 0.8);
+}
+
+
+/*
+============================================================
+HUD
+============================================================
+*/
+
+.hud {
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 1rem;
+
+    padding:
+        1rem 1.2rem;
+
+    background:
+        linear-gradient(
+            to top,
+            rgba(0, 0, 0, 0.85),
+            rgba(0, 0, 0, 0)
+        );
+
+    transition:
+        opacity 0.25s ease,
+        transform 0.25s ease;
+
+    z-index: 10;
+}
+
+
+.controlsVisible .hud {
+    opacity: 1;
+
+    transform:
+        translateY(0);
+}
+
+
+.controlsHidden .hud {
+    opacity: 0;
+
+    transform:
+        translateY(10px);
+
+    pointer-events:
+        none;
+}
+
+
+.hudLeft,
+.hudRight,
+.hudCenter {
+    display: flex;
+
+    align-items: center;
+
+    gap: 0.55rem;
+}
+
+
+.hudCenter {
+    position: absolute;
+
+    left: 50%;
+
+    transform:
+        translateX(-50%);
+}
+
+
+.controlButton {
+    width: 38px;
+    height: 38px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border:
+        1px solid rgba(255, 255, 255, 0.12);
+
+    border-radius:
+        0.65rem;
+
+    background:
+        rgba(20, 20, 20, 0.8);
+
+    color: #fff;
+
+    font-size:
+        1rem;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+
+.controlButton:hover:not(:disabled) {
+    background:
+        rgba(255, 255, 255, 0.15);
+
+    transform:
+        translateY(-1px);
+}
+
+
+.controlButton:disabled {
+    opacity:
+        0.35;
+
+    cursor:
+        not-allowed;
+}
+
+
+.stopButton {
+    background:
+        rgba(255, 65, 65, 0.15);
+
+    border-color:
+        rgba(255, 65, 65, 0.25);
+}
+
+
+.volume {
+    width:
+        85px;
+
+    cursor:
+        pointer;
+}
+
+
+.liveBadge {
+    padding:
+        0.35rem 0.65rem;
+
+    border-radius:
+        999px;
+
+    background:
+        rgba(255, 55, 55, 0.12);
+
+    border:
+        1px solid rgba(255, 55, 55, 0.2);
+
+    color:
+        #ff8a8a;
+
+    font-size:
+        0.65rem;
+
+    font-weight:
+        800;
+
+    letter-spacing:
+        0.06em;
+}
+
+
+/*
+============================================================
+FULLSCREEN
+============================================================
+*/
+
+.fullscreen {
+    border-radius:
+        0;
+}
+
+
+.fullscreen .hud {
+    padding:
+        1.2rem 1.5rem;
+}
+
+
+.fullscreen .localPreview {
+    right:
+        1.5rem;
+
+    bottom:
+        6rem;
+
+    width:
+        240px;
+}
+
+
+/*
+============================================================
+RESPONSIVIDADE
+============================================================
+*/
+
+@media (max-width: 900px) {
+
+    .player {
+        min-height:
+            320px;
+
+        border-radius:
+            0.75rem;
+    }
+
+
+    .localPreview {
+        width:
+            135px;
+
+        bottom:
+            4.8rem;
+
+        right:
+            0.8rem;
+    }
+
+
+    .sharerInfo {
+        top:
+            0.75rem;
+
+        left:
+            0.75rem;
+
+        max-width:
+            calc(100% - 1.5rem);
+
+        font-size:
+            0.72rem;
+    }
+
+
+    .hud {
+        padding:
+            0.7rem 0.8rem;
+    }
+
+
+    .controlButton {
+        width:
+            34px;
+
+        height:
+            34px;
+    }
+
+
+    .volume {
+        display:
+            none;
+    }
+
+
+    .hudCenter {
+        display:
+            none;
+    }
+
+}
+
+
+@media (max-width: 600px) {
+
+    .player {
+        min-height:
+            250px;
+    }
+
+
+    .emptyState {
+        padding:
+            1.2rem;
+    }
+
+
+    .emptyIcon {
+        width:
+            55px;
+
+        height:
+            55px;
+
+        font-size:
+            1.5rem;
+    }
+
+
+    .emptyState h1 {
+        font-size:
+            1.1rem;
+    }
+
+
+    .emptyState p {
+        font-size:
+            0.8rem;
+    }
+
+
+    .startButton {
+        width:
+            100%;
+
+        max-width:
+            280px;
+
+        padding:
+            0.75rem 1rem;
+
+        font-size:
+            0.82rem;
+    }
+
+
+    .localPreview {
+        width:
+            110px;
+
+        bottom:
+            4.5rem;
+    }
+
+}
