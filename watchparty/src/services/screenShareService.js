@@ -324,7 +324,8 @@ const screenShareService = {
     */
 
     async createOffer(
-        peerConnection
+        peerConnection,
+        options = {}
     ) {
 
         if (!peerConnection) {
@@ -341,6 +342,13 @@ const screenShareService = {
         );
 
 
+        if (
+            peerConnection.signalingState === "closed" ||
+            peerConnection.connectionState === "closed"
+        ) {
+            throw new Error("PeerConnection fechada ao criar offer.");
+        }
+
         const offer =
             await peerConnection.createOffer({
 
@@ -348,7 +356,9 @@ const screenShareService = {
                     true,
 
                 offerToReceiveVideo:
-                    true
+                    true,
+
+                ...options
 
             });
 
@@ -388,6 +398,13 @@ const screenShareService = {
                 "PeerConnection e Offer são obrigatórias."
             );
 
+        }
+
+        if (
+            peerConnection.signalingState === "closed" ||
+            peerConnection.connectionState === "closed"
+        ) {
+            throw new Error("PeerConnection fechada ao criar answer.");
         }
 
 
@@ -462,6 +479,21 @@ const screenShareService = {
 
         }
 
+        if (
+            peerConnection.signalingState === "closed" ||
+            peerConnection.connectionState === "closed"
+        ) {
+            return;
+        }
+
+        if (peerConnection.signalingState !== "have-local-offer") {
+            console.warn(
+                "[ScreenShare] Answer ignorada em signalingState:",
+                peerConnection.signalingState
+            );
+            return;
+        }
+
 
         console.log(
             "[ScreenShare] Aplicando SDP Answer..."
@@ -500,6 +532,13 @@ const screenShareService = {
 
             return;
 
+        }
+
+        if (
+            peerConnection.signalingState === "closed" ||
+            peerConnection.connectionState === "closed"
+        ) {
+            return;
         }
 
 
@@ -596,6 +635,8 @@ const screenShareService = {
         }
 
 
+        const fallbackStream = new MediaStream();
+
         peerConnection.ontrack =
             event => {
 
@@ -654,13 +695,11 @@ const screenShareService = {
                 );
 
 
-                const fallbackStream =
-                    new MediaStream();
-
-
-                fallbackStream.addTrack(
-                    event.track
-                );
+                if (
+                    !fallbackStream.getTracks().includes(event.track)
+                ) {
+                    fallbackStream.addTrack(event.track);
+                }
 
 
                 callback(
@@ -712,6 +751,21 @@ const screenShareService = {
 
             };
 
+    },
+
+
+    onIceConnectionStateChange(
+        peerConnection,
+        callback
+    ) {
+
+        if (!peerConnection || !callback) {
+            return;
+        }
+
+        peerConnection.oniceconnectionstatechange = () => {
+            callback(peerConnection.iceConnectionState);
+        };
     },
 
 

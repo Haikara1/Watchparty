@@ -16,6 +16,162 @@ import screenShareService from "../../services/screenShareService";
 import styles from "./WatchRoom.module.css";
 
 
+async function playScreenShareStartedSound() {
+
+    const AudioContextClass =
+        window.AudioContext || window.webkitAudioContext;
+
+    if (!AudioContextClass) {
+        return;
+    }
+
+    let audioContext;
+
+    try {
+        audioContext = new AudioContextClass();
+
+        if (audioContext.state === "suspended") {
+            await Promise.race([
+                audioContext.resume(),
+                new Promise(resolve => {
+                    setTimeout(resolve, 100);
+                })
+            ]);
+
+            if (audioContext.state !== "running") {
+                await audioContext.close();
+                return;
+            }
+        }
+
+        const masterGain = audioContext.createGain();
+        const startedAt = audioContext.currentTime;
+
+        masterGain.gain.setValueAtTime(0.0001, startedAt);
+        masterGain.gain.exponentialRampToValueAtTime(
+            0.12,
+            startedAt + 0.025
+        );
+        masterGain.gain.exponentialRampToValueAtTime(
+            0.0001,
+            startedAt + 0.38
+        );
+        masterGain.connect(audioContext.destination);
+
+        [
+            { frequency: 523.25, offset: 0 },
+            { frequency: 659.25, offset: 0.11 }
+        ].forEach(({ frequency, offset }) => {
+            const oscillator = audioContext.createOscillator();
+            const noteGain = audioContext.createGain();
+            const noteStartedAt = startedAt + offset;
+
+            oscillator.type = "sine";
+            oscillator.frequency.setValueAtTime(
+                frequency,
+                noteStartedAt
+            );
+
+            noteGain.gain.setValueAtTime(
+                0.0001,
+                noteStartedAt
+            );
+            noteGain.gain.exponentialRampToValueAtTime(
+                1,
+                noteStartedAt + 0.018
+            );
+            noteGain.gain.exponentialRampToValueAtTime(
+                0.0001,
+                noteStartedAt + 0.2
+            );
+
+            oscillator.connect(noteGain);
+            noteGain.connect(masterGain);
+            oscillator.start(noteStartedAt);
+            oscillator.stop(noteStartedAt + 0.21);
+        });
+
+        setTimeout(() => {
+            audioContext.close().catch(() => {});
+        }, 500);
+
+    } catch (error) {
+        console.warn(
+            "[ScreenShare] Som de início bloqueado pelo navegador:",
+            error
+        );
+
+        if (audioContext && audioContext.state !== "closed") {
+            audioContext.close().catch(() => {});
+        }
+    }
+}
+
+
+function ScreenSharePreview({ share, isActive, onSelect }) {
+
+    const videoRef = useRef(null);
+
+    useEffect(() => {
+
+        const video = videoRef.current;
+
+        if (!video) {
+            return;
+        }
+
+        if (video.srcObject !== share.stream) {
+            video.srcObject = share.stream;
+        }
+
+        video.muted = true;
+
+        video.play().catch(error => {
+            console.warn(
+                "[ScreenShare] Autoplay do preview bloqueado:",
+                error
+            );
+        });
+
+        return () => {
+            if (video.srcObject === share.stream) {
+                video.srcObject = null;
+            }
+        };
+
+    }, [share.stream]);
+
+    return (
+        <button
+            type="button"
+            className={`${styles.screenPreview} ${
+                isActive ? styles.screenPreviewActive : ""
+            }`}
+            onClick={() => onSelect(share.userId)}
+            aria-label={`Assistir ao compartilhamento de ${share.username}`}
+            aria-pressed={isActive}
+        >
+            <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className={styles.screenPreviewVideo}
+            />
+
+            <span className={styles.screenPreviewOverlay}>
+                <span className={styles.screenPreviewUsername}>
+                    {share.username}
+                </span>
+                <span className={styles.screenPreviewLive}>
+                    LIVE
+                </span>
+            </span>
+        </button>
+    );
+}
+
+
 function WatchRoom() {
 
     const { roomId } = useParams();
@@ -25,6 +181,8 @@ function WatchRoom() {
     const channelRef = useRef(null);
 
     const isConnectingRef = useRef(false);
+
+    const isRetrackingPresenceRef = useRef(false);
 
     /*
     ============================================================
@@ -181,17 +339,129 @@ function WatchRoom() {
 
     const pendingIceCandidatesRef = useRef(new Map());
 
+    const peerDisconnectTimersRef = useRef(new Map());
+
+    const peerRecoveryAttemptsRef = useRef(new Map());
+
+    const peerRecoveryInProgressRef = useRef(new Set());
+
+    const isStoppingScreenShareRef = useRef(false);
+
     /*
     ============================================================
     STREAM REMOTA
     ============================================================
     */
 
-    const [remoteScreenStream, setRemoteScreenStream] =
+    const [remoteScreenShares, setRemoteScreenShares] =
+        useState([]);
+
+    const remoteScreenSharesRef = useRef([]);
+
+    const [activeScreenShareId, setActiveScreenShareId] =
         useState(null);
 
-    const [remoteScreenSharer, setRemoteScreenSharer] =
-        useState(null);
+    const remoteShareUsernamesRef = useRef(new Map());
+
+    const announcedRemoteSharesRef = useRef(new Set());
+
+    function addRemoteScreenShare(userId, username, stream) {
+
+        if (!userId || !stream) {
+            return;
+        }
+
+        const resolvedUsername =
+            username ||
+            remoteShareUsernamesRef.current.get(userId) ||
+            "Participante";
+
+        remoteShareUsernamesRef.current.set(
+            userId,
+            resolvedUsername
+        );
+
+        const previous = remoteScreenSharesRef.current;
+
+        const existingIndex = previous.findIndex(
+            share => share.userId === userId
+        );
+
+        let next;
+
+        if (existingIndex === -1) {
+            next = [
+                ...previous,
+                {
+                    userId,
+                    username: resolvedUsername,
+                    stream
+                }
+            ];
+        } else {
+            const existing = previous[existingIndex];
+
+            if (
+                existing.stream === stream &&
+                existing.username === resolvedUsername
+            ) {
+                return;
+            }
+
+            next = [...previous];
+
+            next[existingIndex] = {
+                ...existing,
+                username: resolvedUsername,
+                stream
+            };
+        }
+
+        remoteScreenSharesRef.current = next;
+        setRemoteScreenShares(next);
+
+    }
+
+    function removeRemoteScreenShare(userId) {
+
+        if (!userId) {
+            return;
+        }
+
+        remoteShareUsernamesRef.current.delete(userId);
+        announcedRemoteSharesRef.current.delete(userId);
+
+        const next =
+            remoteScreenSharesRef.current.filter(
+                share => share.userId !== userId
+            );
+
+        remoteScreenSharesRef.current = next;
+        setRemoteScreenShares(next);
+
+        setActiveScreenShareId(
+            current =>
+                current === null
+                    ? null
+                    : current !== userId && next.some(
+                        share => share.userId === current
+                    )
+                        ? current
+                        : next[0]?.userId || null
+        );
+    }
+
+    function selectScreenShare(userId) {
+        setActiveScreenShareId(userId);
+    }
+
+    const activeScreenShare =
+        remoteScreenShares.find(
+            share => share.userId === activeScreenShareId
+        ) || null;
+
+    const remoteScreenStream =
+        activeScreenShare?.stream || null;
 
     /*
     ============================================================
@@ -278,11 +548,11 @@ function WatchRoom() {
 
             video.muted = true;
 
-            setIsMuted(true);
-
             const playVideo = async () => {
 
                 try {
+
+                    setIsMuted(true);
 
                     await video.play();
 
@@ -312,8 +582,6 @@ function WatchRoom() {
         video.pause();
 
         video.srcObject = null;
-
-        setIsPlaying(false);
 
     }, [remoteScreenStream]);
 
@@ -655,6 +923,30 @@ function WatchRoom() {
         return userId === userIdRef.current;
     }
 
+    function getPeerStateKey(userId, direction) {
+        return `${direction}:${userId}`;
+    }
+
+    function cancelPeerDisconnectCleanup(userId, direction) {
+
+        const key = getPeerStateKey(userId, direction);
+        const timeoutId = peerDisconnectTimersRef.current.get(key);
+
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+            peerDisconnectTimersRef.current.delete(key);
+        }
+    }
+
+    function clearPeerRecoveryState(userId, direction) {
+
+        const key = getPeerStateKey(userId, direction);
+
+        cancelPeerDisconnectCleanup(userId, direction);
+        peerRecoveryAttemptsRef.current.delete(key);
+        peerRecoveryInProgressRef.current.delete(key);
+    }
+
     function closeOutgoingPeer(userId) {
 
         const peer =
@@ -664,56 +956,85 @@ function WatchRoom() {
             return;
         }
 
-        screenShareService.closePeerConnection(peer);
-
         outgoingPeersRef.current.delete(userId);
+        clearPeerRecoveryState(userId, "outgoing");
+        pendingIceCandidatesRef.current.delete(
+            `${userId}:${userIdRef.current}`
+        );
+
+        screenShareService.closePeerConnection(peer);
     }
 
-    function closeIncomingPeer(userId) {
+    function closeIncomingPeer(
+        userId,
+        expectedPeer = null
+    ) {
 
         const peer =
             incomingPeersRef.current.get(userId);
 
-        if (!peer) {
+        if (
+            !peer ||
+            (expectedPeer && peer !== expectedPeer)
+        ) {
             return;
         }
 
-        screenShareService.closePeerConnection(peer);
-
         incomingPeersRef.current.delete(userId);
+        clearPeerRecoveryState(userId, "incoming");
 
-        pendingIceCandidatesRef.current.delete(userId);
+        pendingIceCandidatesRef.current.delete(
+            `${userId}:${userId}`
+        );
+
+        screenShareService.closePeerConnection(peer);
     }
 
     function closeAllScreenSharePeers() {
 
-        outgoingPeersRef.current.forEach(peer => {
+        const outgoingPeers = Array.from(
+            outgoingPeersRef.current.values()
+        );
 
-            screenShareService.closePeerConnection(peer);
-
-        });
-
-        incomingPeersRef.current.forEach(peer => {
-
-            screenShareService.closePeerConnection(peer);
-
-        });
+        const incomingPeers = Array.from(
+            incomingPeersRef.current.values()
+        );
 
         outgoingPeersRef.current.clear();
 
         incomingPeersRef.current.clear();
 
+        outgoingPeers.forEach(peer => {
+            screenShareService.closePeerConnection(peer);
+        });
+
+        incomingPeers.forEach(peer => {
+            screenShareService.closePeerConnection(peer);
+        });
+
         pendingIceCandidatesRef.current.clear();
+
+        peerDisconnectTimersRef.current.forEach(timeoutId => {
+            clearTimeout(timeoutId);
+        });
+
+        peerDisconnectTimersRef.current.clear();
+        peerRecoveryAttemptsRef.current.clear();
+        peerRecoveryInProgressRef.current.clear();
     }
 
     async function flushPendingIceCandidates(
         peerConnection,
-        remoteUserId
+        remoteUserId,
+        shareOwnerId = remoteUserId
     ) {
+
+        const pendingKey =
+            `${remoteUserId}:${shareOwnerId}`;
 
         const candidates =
             pendingIceCandidatesRef.current.get(
-                remoteUserId
+                pendingKey
             );
 
         if (!candidates?.length) {
@@ -729,8 +1050,222 @@ function WatchRoom() {
         }
 
         pendingIceCandidatesRef.current.delete(
+            pendingKey
+        );
+    }
+
+    async function attemptOutgoingPeerRecovery(
+        remoteUserId,
+        expectedPeer
+    ) {
+
+        const key = getPeerStateKey(remoteUserId, "outgoing");
+        const peerConnection =
+            outgoingPeersRef.current.get(remoteUserId);
+
+        if (
+            !peerConnection ||
+            peerConnection !== expectedPeer ||
+            peerConnection.signalingState === "closed" ||
+            peerRecoveryInProgressRef.current.has(key)
+        ) {
+            return;
+        }
+
+        const attempts =
+            peerRecoveryAttemptsRef.current.get(key) || 0;
+
+        if (attempts >= 2) {
+            console.warn(
+                "[ScreenShare] Recovery falhou:",
+                remoteUserId
+            );
+            closeOutgoingPeer(remoteUserId);
+            return;
+        }
+
+        peerRecoveryAttemptsRef.current.set(key, attempts + 1);
+        peerRecoveryInProgressRef.current.add(key);
+
+        console.log(
+            "[ScreenShare] ICE restart iniciado:",
             remoteUserId
         );
+
+        try {
+            peerConnection.restartIce?.();
+
+            const offer = await screenShareService.createOffer(
+                peerConnection,
+                { iceRestart: true }
+            );
+
+            if (
+                outgoingPeersRef.current.get(remoteUserId) !==
+                peerConnection
+            ) {
+                return;
+            }
+
+            await screenShareService.sendSignal(
+                getActiveChannel(),
+                {
+                    type: "offer",
+                    senderId: userIdRef.current,
+                    targetId: remoteUserId,
+                    username: usernameRef.current,
+                    shareOwnerId: userIdRef.current,
+                    iceRestart: true,
+                    offer
+                }
+            );
+
+            console.log(
+                "[ScreenShare] ICE restart concluído:",
+                remoteUserId
+            );
+
+        } catch (error) {
+            console.warn(
+                "[ScreenShare] Recovery falhou:",
+                remoteUserId,
+                error
+            );
+        } finally {
+            peerRecoveryInProgressRef.current.delete(key);
+
+            if (
+                outgoingPeersRef.current.get(remoteUserId) ===
+                peerConnection &&
+                peerConnection.connectionState !== "connected"
+            ) {
+                schedulePeerDisconnectCleanup(
+                    remoteUserId,
+                    "outgoing",
+                    peerConnection
+                );
+            }
+        }
+    }
+
+    function schedulePeerDisconnectCleanup(
+        userId,
+        direction,
+        peerConnection
+    ) {
+
+        const key = getPeerStateKey(userId, direction);
+
+        if (peerDisconnectTimersRef.current.has(key)) {
+            return;
+        }
+
+        console.log(
+            "[ScreenShare] Peer temporariamente desconectado:",
+            direction,
+            userId
+        );
+
+        const timeoutId = setTimeout(() => {
+            peerDisconnectTimersRef.current.delete(key);
+
+            const peers = direction === "outgoing"
+                ? outgoingPeersRef.current
+                : incomingPeersRef.current;
+
+            if (
+                peers.get(userId) !== peerConnection ||
+                ["connected", "completed"].includes(
+                    peerConnection.connectionState
+                )
+            ) {
+                return;
+            }
+
+            console.warn(
+                "[ScreenShare] Peer removido após timeout:",
+                direction,
+                userId
+            );
+
+            if (direction === "outgoing") {
+                void attemptOutgoingPeerRecovery(
+                    userId,
+                    peerConnection
+                );
+            } else {
+                closeIncomingPeer(userId, peerConnection);
+                removeRemoteScreenShare(userId);
+            }
+        }, 5000);
+
+        peerDisconnectTimersRef.current.set(key, timeoutId);
+    }
+
+    function handlePeerConnectionState(
+        userId,
+        direction,
+        peerConnection,
+        state
+    ) {
+
+        const peers = direction === "outgoing"
+            ? outgoingPeersRef.current
+            : incomingPeersRef.current;
+
+        if (peers.get(userId) !== peerConnection) {
+            return;
+        }
+
+        if (state === "connected" || state === "completed") {
+            const hadTimer = peerDisconnectTimersRef.current.has(
+                getPeerStateKey(userId, direction)
+            );
+
+            cancelPeerDisconnectCleanup(userId, direction);
+            peerRecoveryAttemptsRef.current.delete(
+                getPeerStateKey(userId, direction)
+            );
+
+            if (hadTimer) {
+                console.log(
+                    "[ScreenShare] Peer reconectado:",
+                    direction,
+                    userId
+                );
+            }
+            return;
+        }
+
+        if (state === "disconnected") {
+            schedulePeerDisconnectCleanup(
+                userId,
+                direction,
+                peerConnection
+            );
+            return;
+        }
+
+        if (state === "failed") {
+            cancelPeerDisconnectCleanup(userId, direction);
+
+            if (direction === "outgoing") {
+                void attemptOutgoingPeerRecovery(userId, peerConnection);
+            } else {
+                closeIncomingPeer(userId, peerConnection);
+                removeRemoteScreenShare(userId);
+            }
+            return;
+        }
+
+        if (state === "closed") {
+            if (direction === "outgoing") {
+                closeOutgoingPeer(userId);
+            } else {
+                closeIncomingPeer(userId, peerConnection);
+                removeRemoteScreenShare(userId);
+            }
+        }
     }
 
     /*
@@ -793,6 +1328,7 @@ function WatchRoom() {
                         type: "ice-candidate",
                         senderId: userIdRef.current,
                         targetId: remoteUserId,
+                        shareOwnerId: userIdRef.current,
                         candidate
                     }
                 );
@@ -802,17 +1338,24 @@ function WatchRoom() {
         screenShareService.onConnectionStateChange(
             peerConnection,
             state => {
+                handlePeerConnectionState(
+                    remoteUserId,
+                    "outgoing",
+                    peerConnection,
+                    state
+                );
+            }
+        );
 
-                if (
-                    state === "failed" ||
-                    state === "disconnected" ||
-                    state === "closed"
-                ) {
-
-                    closeOutgoingPeer(
-                        remoteUserId
-                    );
-                }
+        screenShareService.onIceConnectionStateChange(
+            peerConnection,
+            state => {
+                handlePeerConnectionState(
+                    remoteUserId,
+                    "outgoing",
+                    peerConnection,
+                    state
+                );
             }
         );
 
@@ -830,6 +1373,7 @@ function WatchRoom() {
                     senderId: userIdRef.current,
                     targetId: remoteUserId,
                     username: usernameRef.current,
+                    shareOwnerId: userIdRef.current,
                     offer
                 }
             );
@@ -855,7 +1399,11 @@ function WatchRoom() {
 
     async function handleStartScreenShare() {
 
-        if (isScreenSharing) {
+        if (
+            isScreenSharing ||
+            localScreenStreamRef.current ||
+            isStoppingScreenShareRef.current
+        ) {
             return;
         }
 
@@ -896,7 +1444,7 @@ function WatchRoom() {
                 videoTrack.onended =
                     () => {
 
-                        handleStopScreenShare();
+                        void handleStopScreenShare();
 
                     };
             }
@@ -951,6 +1499,10 @@ function WatchRoom() {
 
     async function handleStopScreenShare() {
 
+        if (isStoppingScreenShareRef.current) {
+            return;
+        }
+
         const activeChannel =
             getActiveChannel();
 
@@ -961,40 +1513,37 @@ function WatchRoom() {
             return;
         }
 
-        localScreenStreamRef.current = null;
+        isStoppingScreenShareRef.current = true;
 
-        setIsScreenSharing(false);
+        try {
+            localScreenStreamRef.current = null;
 
-        screenShareService.stopScreenShare(
-            stream
-        );
+            setIsScreenSharing(false);
 
-        outgoingPeersRef.current.forEach(
-            peer => {
+            stream.getTracks().forEach(track => {
+                track.onended = null;
+            });
 
-                screenShareService.closePeerConnection(
-                    peer
-                );
+            screenShareService.stopScreenShare(stream);
 
-            }
-        );
-
-        outgoingPeersRef.current.clear();
-
-        if (
-            activeChannel &&
-            realtimeService.isChannelReady(
-                activeChannel
-            )
-        ) {
-
-            await screenShareService.sendSignal(
-                activeChannel,
-                {
-                    type: "stopped",
-                    senderId: userIdRef.current
-                }
+            Array.from(outgoingPeersRef.current.keys()).forEach(
+                remoteUserId => closeOutgoingPeer(remoteUserId)
             );
+
+            if (
+                activeChannel &&
+                realtimeService.isChannelReady(activeChannel)
+            ) {
+                await screenShareService.sendSignal(
+                    activeChannel,
+                    {
+                        type: "stopped",
+                        senderId: userIdRef.current
+                    }
+                );
+            }
+        } finally {
+            isStoppingScreenShareRef.current = false;
         }
     }
 
@@ -1023,73 +1572,114 @@ function WatchRoom() {
         const remoteUserId =
             signal.senderId;
 
-        closeIncomingPeer(
-            remoteUserId
-        );
-
-        const peerConnection =
-            screenShareService.createPeerConnection();
-
-        incomingPeersRef.current.set(
+        remoteShareUsernamesRef.current.set(
             remoteUserId,
-            peerConnection
+            signal.username || "Participante"
         );
 
-        screenShareService.onRemoteStream(
-            peerConnection,
-            stream => {
+        const existingPeer =
+            incomingPeersRef.current.get(remoteUserId);
 
-                setRemoteScreenStream(
-                    stream
-                );
-
-                setRemoteScreenSharer({
-                    userId: remoteUserId,
-                    username:
-                        signal.username ||
-                        "Participante"
-                });
-            }
+        const canReusePeer = Boolean(
+            existingPeer &&
+            existingPeer.signalingState !== "closed" &&
+            existingPeer.connectionState !== "closed" &&
+            existingPeer.connectionState !== "failed"
         );
 
-        screenShareService.onIceCandidate(
-            peerConnection,
-            candidate => {
+        if (existingPeer && !canReusePeer) {
+            closeIncomingPeer(remoteUserId, existingPeer);
+        }
 
-                screenShareService.sendSignal(
-                    activeChannel,
-                    {
-                        type: "ice-candidate",
-                        senderId: userIdRef.current,
-                        targetId: remoteUserId,
-                        candidate
-                    }
-                );
-            }
-        );
+        const peerConnection = canReusePeer
+            ? existingPeer
+            : screenShareService.createPeerConnection();
 
-        screenShareService.onConnectionStateChange(
-            peerConnection,
-            state => {
+        if (!canReusePeer) {
+            incomingPeersRef.current.set(
+                remoteUserId,
+                peerConnection
+            );
 
-                if (
-                    state === "failed" ||
-                    state === "disconnected" ||
-                    state === "closed"
-                ) {
+            screenShareService.onRemoteStream(
+                peerConnection,
+                stream => {
 
-                    closeIncomingPeer(
-                        remoteUserId
+                    addRemoteScreenShare(
+                        remoteUserId,
+                        signal.username,
+                        stream
                     );
 
-                    setRemoteScreenStream(null);
+                    stream.getTracks().forEach(track => {
+                        track.onended = () => {
+                            console.log(
+                                "[ScreenShare] Track remota encerrada:",
+                                remoteUserId,
+                                track.kind
+                            );
 
-                    setRemoteScreenSharer(null);
-
-                    setIsPlaying(false);
+                            queueMicrotask(() => {
+                                if (
+                                    incomingPeersRef.current.get(remoteUserId) ===
+                                        peerConnection &&
+                                    stream.getTracks().every(
+                                        item => item.readyState === "ended"
+                                    )
+                                ) {
+                                    closeIncomingPeer(
+                                        remoteUserId,
+                                        peerConnection
+                                    );
+                                    removeRemoteScreenShare(remoteUserId);
+                                }
+                            });
+                        };
+                    });
                 }
-            }
-        );
+            );
+
+            screenShareService.onIceCandidate(
+                peerConnection,
+                candidate => {
+
+                    screenShareService.sendSignal(
+                        activeChannel,
+                        {
+                            type: "ice-candidate",
+                            senderId: userIdRef.current,
+                            targetId: remoteUserId,
+                            shareOwnerId: remoteUserId,
+                            candidate
+                        }
+                    );
+                }
+            );
+
+            screenShareService.onConnectionStateChange(
+                peerConnection,
+                state => {
+                    handlePeerConnectionState(
+                        remoteUserId,
+                        "incoming",
+                        peerConnection,
+                        state
+                    );
+                }
+            );
+
+            screenShareService.onIceConnectionStateChange(
+                peerConnection,
+                state => {
+                    handlePeerConnectionState(
+                        remoteUserId,
+                        "incoming",
+                        peerConnection,
+                        state
+                    );
+                }
+            );
+        }
 
         try {
 
@@ -1101,6 +1691,7 @@ function WatchRoom() {
 
             await flushPendingIceCandidates(
                 peerConnection,
+                remoteUserId,
                 remoteUserId
             );
 
@@ -1110,6 +1701,7 @@ function WatchRoom() {
                     type: "answer",
                     senderId: userIdRef.current,
                     targetId: remoteUserId,
+                    shareOwnerId: remoteUserId,
                     answer
                 }
             );
@@ -1122,7 +1714,8 @@ function WatchRoom() {
             );
 
             closeIncomingPeer(
-                remoteUserId
+                remoteUserId,
+                peerConnection
             );
         }
     }
@@ -1163,7 +1756,8 @@ function WatchRoom() {
 
             await flushPendingIceCandidates(
                 peerConnection,
-                remoteUserId
+                remoteUserId,
+                userIdRef.current
             );
 
         } catch (error) {
@@ -1193,28 +1787,33 @@ function WatchRoom() {
         const remoteUserId =
             signal.senderId;
 
-        const peerConnection =
-            outgoingPeersRef.current.get(
-                remoteUserId
-            ) ||
-            incomingPeersRef.current.get(
-                remoteUserId
-            );
+        const shareOwnerId =
+            signal.shareOwnerId;
+
+        const peerConnection = shareOwnerId
+            ? shareOwnerId === userIdRef.current
+                ? outgoingPeersRef.current.get(remoteUserId)
+                : incomingPeersRef.current.get(remoteUserId)
+            : outgoingPeersRef.current.get(remoteUserId) ||
+                incomingPeersRef.current.get(remoteUserId);
+
+        const pendingKey =
+            `${remoteUserId}:${shareOwnerId || remoteUserId}`;
 
         if (!peerConnection) {
 
             const pending =
                 pendingIceCandidatesRef.current.get(
-                    remoteUserId
+                    pendingKey
                 ) || [];
 
             pending.push(
                 signal.candidate
             );
 
-            pendingIceCandidatesRef.current.set(
-                remoteUserId,
-                pending
+                pendingIceCandidatesRef.current.set(
+                    pendingKey,
+                    pending
             );
 
             return;
@@ -1224,16 +1823,16 @@ function WatchRoom() {
 
             const pending =
                 pendingIceCandidatesRef.current.get(
-                    remoteUserId
+                    pendingKey
                 ) || [];
 
             pending.push(
                 signal.candidate
             );
 
-            pendingIceCandidatesRef.current.set(
-                remoteUserId,
-                pending
+                pendingIceCandidatesRef.current.set(
+                    pendingKey,
+                    pending
             );
 
             return;
@@ -1288,12 +1887,22 @@ function WatchRoom() {
 
                 case "started":
 
-                    setRemoteScreenSharer({
-                        userId: signal.senderId,
-                        username:
-                            signal.username ||
-                            "Participante"
-                    });
+                    remoteShareUsernamesRef.current.set(
+                        signal.senderId,
+                        signal.username || "Participante"
+                    );
+
+                    if (
+                        !announcedRemoteSharesRef.current.has(
+                            signal.senderId
+                        )
+                    ) {
+                        announcedRemoteSharesRef.current.add(
+                            signal.senderId
+                        );
+
+                        void playScreenShareStartedSound();
+                    }
 
                     break;
 
@@ -1327,11 +1936,9 @@ function WatchRoom() {
                         signal.senderId
                     );
 
-                    setRemoteScreenStream(null);
-
-                    setRemoteScreenSharer(null);
-
-                    setIsPlaying(false);
+                    removeRemoteScreenShare(
+                        signal.senderId
+                    );
 
                     break;
 
@@ -1386,6 +1993,33 @@ function WatchRoom() {
         }
     }
 
+    function handleParticipantLeave(payload) {
+
+        const leftPresences =
+            payload?.leftPresences || [];
+
+        leftPresences.forEach(leftUser => {
+
+            const leftUserId = leftUser?.userId;
+
+            if (!leftUserId || isCurrentUser(leftUserId)) {
+                return;
+            }
+
+            closeIncomingPeer(leftUserId);
+            closeOutgoingPeer(leftUserId);
+            removeRemoteScreenShare(leftUserId);
+
+            Array.from(
+                pendingIceCandidatesRef.current.keys()
+            ).forEach(key => {
+                if (key.startsWith(`${leftUserId}:`)) {
+                    pendingIceCandidatesRef.current.delete(key);
+                }
+            });
+        });
+    }
+
     /*
     ============================================================
     CARREGAR SALA
@@ -1435,10 +2069,15 @@ function WatchRoom() {
         if (roomId) {
             loadRoom();
         } else {
+            queueMicrotask(() => {
 
-            setRoom(null);
+                if (!isActive) {
+                    return;
+                }
 
-            setIsLoading(false);
+                setRoom(null);
+                setIsLoading(false);
+            });
         }
 
         return () => {
@@ -1446,6 +2085,33 @@ function WatchRoom() {
         };
 
     }, [roomId]);
+
+    useEffect(() => {
+
+        function handlePageExit() {
+
+            const localStream = localScreenStreamRef.current;
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    track.onended = null;
+                });
+                screenShareService.stopScreenShare(localStream);
+                localScreenStreamRef.current = null;
+            }
+
+            closeAllScreenSharePeers();
+        }
+
+        window.addEventListener("pagehide", handlePageExit);
+        window.addEventListener("beforeunload", handlePageExit);
+
+        return () => {
+            window.removeEventListener("pagehide", handlePageExit);
+            window.removeEventListener("beforeunload", handlePageExit);
+        };
+
+    }, []);
 
     /*
     ============================================================
@@ -1464,6 +2130,12 @@ function WatchRoom() {
         }
 
         let isActive = true;
+
+        const remoteShareUsernames =
+            remoteShareUsernamesRef.current;
+
+        const announcedRemoteShares =
+            announcedRemoteSharesRef.current;
 
         isConnectingRef.current = true;
 
@@ -1564,6 +2236,33 @@ function WatchRoom() {
                 setParticipants(
                     uniqueUsers
                 );
+
+                const hasCurrentUser = uniqueUsers.some(
+                    user => user.userId === userIdRef.current
+                );
+
+                if (
+                    !hasCurrentUser &&
+                    !isRetrackingPresenceRef.current &&
+                    realtimeService.isChannelReady(channel)
+                ) {
+                    isRetrackingPresenceRef.current = true;
+
+                    void realtimeService.trackPresence(
+                        channel,
+                        {
+                            userId: userIdRef.current,
+                            username: usernameRef.current
+                        }
+                    ).catch(error => {
+                        console.warn(
+                            "[Presence] Falha ao restaurar presença:",
+                            error
+                        );
+                    }).finally(() => {
+                        isRetrackingPresenceRef.current = false;
+                    });
+                }
             }
         );
 
@@ -1582,6 +2281,18 @@ function WatchRoom() {
                 handleParticipantJoin(
                     payload
                 );
+            }
+        );
+
+        realtimeService.onPresenceLeave(
+            channel,
+            payload => {
+
+                if (!isActive) {
+                    return;
+                }
+
+                handleParticipantLeave(payload);
             }
         );
 
@@ -1669,6 +2380,8 @@ function WatchRoom() {
             isConnectingRef.current =
                 false;
 
+            isRetrackingPresenceRef.current = false;
+
             if (
                 localScreenStreamRef.current
             ) {
@@ -1685,9 +2398,15 @@ function WatchRoom() {
 
             setIsScreenSharing(false);
 
-            setRemoteScreenStream(null);
+            setRemoteScreenShares([]);
 
-            setRemoteScreenSharer(null);
+            remoteScreenSharesRef.current = [];
+
+            setActiveScreenShareId(null);
+
+            remoteShareUsernames.clear();
+
+            announcedRemoteShares.clear();
 
             setParticipants([]);
 
@@ -2012,8 +2731,12 @@ function WatchRoom() {
                                         userIdRef.current;
 
                                     const isSharing =
-                                        remoteScreenSharer?.userId ===
-                                        participant.userId;
+                                        (isUser && isScreenSharing) ||
+                                        remoteScreenShares.some(
+                                            share =>
+                                                share.userId ===
+                                                participant.userId
+                                        );
 
                                     const initial =
                                         participant.username
@@ -2193,7 +2916,7 @@ function WatchRoom() {
 
                                     <strong>
                                         {
-                                            remoteScreenSharer?.username ||
+                                            activeScreenShare?.username ||
                                             "Participante"
                                         }
                                     </strong>
@@ -2337,10 +3060,22 @@ function WatchRoom() {
                         ) : (
 
                             <div
-                                className={
-                                    styles.noStream
-                                }
+                                className={`${styles.noStream} ${
+                                    remoteScreenShares.length > 0
+                                        ? styles.availableStreams
+                                        : ""
+                                }`}
                             >
+
+                                {remoteScreenShares.length > 0 && (
+                                    <div className={styles.availableStreamsCopy}>
+                                        <h1>Escolha uma transmissão</h1>
+                                        <p>
+                                            Existem pessoas compartilhando a tela.
+                                            Selecione uma transmissão abaixo para assistir.
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div
                                     className={
@@ -2406,6 +3141,29 @@ function WatchRoom() {
                         )}
 
                     </div>
+
+                    {remoteScreenShares.length > 0 && (
+                        <div
+                            className={`${styles.screenPreviews} ${
+                                activeScreenShareId === null
+                                    ? styles.screenPreviewsPending
+                                    : ""
+                            }`}
+                            aria-label="Compartilhamentos de tela ativos"
+                        >
+                            {remoteScreenShares.map(share => (
+                                <ScreenSharePreview
+                                    key={share.userId}
+                                    share={share}
+                                    isActive={
+                                        share.userId ===
+                                        activeScreenShareId
+                                    }
+                                    onSelect={selectScreenShare}
+                                />
+                            ))}
+                        </div>
+                    )}
 
                     {/* ==================================================
                         BARRA INFERIOR
