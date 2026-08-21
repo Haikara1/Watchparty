@@ -13,8 +13,46 @@ import realtimeService from "../../services/realtimeService";
 
 import screenShareService from "../../services/screenShareService";
 
+import {
+    getOrCreateParticipantId,
+    getSavedUsername,
+    normalizeUsername,
+    saveUsername,
+    validateUsername
+} from "../../services/participantIdentity";
+
 import styles from "./WatchRoom.module.css";
 
+
+const ADAPTIVE_PROFILES = [
+    { id: "very-low", label: "Muito baixa", maxBitrate: 700_000, maxFramerate: 15, scaleResolutionDownBy: 2 },
+    { id: "low", label: "Baixa", maxBitrate: 1_200_000, maxFramerate: 24, scaleResolutionDownBy: 1.5 },
+    { id: "medium", label: "Média", maxBitrate: 2_500_000, maxFramerate: 30, scaleResolutionDownBy: 1 },
+    { id: "high", label: "Alta", maxBitrate: 4_500_000, maxFramerate: 60, scaleResolutionDownBy: 1 }
+];
+
+const MAX_SIMULTANEOUS_SCREEN_SHARES = 3;
+
+
+function getAdaptiveProfile(index, settings) {
+    const base = ADAPTIVE_PROFILES[index];
+    const selectedFps = Number(settings?.selectedFps) || 30;
+    const selectedQuality = settings?.selectedQuality || "1080p";
+    const bitrateCeiling = selectedQuality === "720p"
+        ? 2_500_000
+        : 4_500_000;
+
+    return {
+        ...base,
+        maxBitrate: Math.min(base.maxBitrate, bitrateCeiling),
+        maxFramerate: Math.min(base.maxFramerate, selectedFps)
+    };
+}
+
+
+function getCurrentTimestamp() {
+    return Date.now();
+}
 
 async function playScreenShareStartedSound() {
 
@@ -108,7 +146,14 @@ async function playScreenShareStartedSound() {
 }
 
 
-function ScreenSharePreview({ share, isActive, onSelect }) {
+function ScreenSharePreview({
+    share,
+    isActive,
+    onSelect,
+    isHostShare = false,
+    canForceStop = false,
+    onForceStop
+}) {
 
     const videoRef = useRef(null);
 
@@ -142,12 +187,19 @@ function ScreenSharePreview({ share, isActive, onSelect }) {
     }, [share.stream]);
 
     return (
-        <button
-            type="button"
+        <div
             className={`${styles.screenPreview} ${
                 isActive ? styles.screenPreviewActive : ""
             }`}
             onClick={() => onSelect(share.userId)}
+            onKeyDown={event => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(share.userId);
+                }
+            }}
+            role="button"
+            tabIndex={0}
             aria-label={`Assistir ao compartilhamento de ${share.username}`}
             aria-pressed={isActive}
         >
@@ -166,9 +218,92 @@ function ScreenSharePreview({ share, isActive, onSelect }) {
                 <span className={styles.screenPreviewLive}>
                     LIVE
                 </span>
+                {isHostShare && (
+                    <span className={styles.screenShareHostBadge}>HOST</span>
+                )}
+                {share.streamSettings && (
+                    <span className={styles.streamQualityBadge}>
+                        {formatStreamQuality(share.streamSettings)}
+                    </span>
+                )}
             </span>
-        </button>
+
+            {canForceStop && (
+                <button
+                    type="button"
+                    className={styles.shareAdminButton}
+                    onClick={event => {
+                        event.stopPropagation();
+                        onForceStop(share.userId);
+                    }}
+                >
+                    Encerrar transmissão
+                </button>
+            )}
+        </div>
     );
+}
+
+
+function PendingScreenPreview({ stream }) {
+
+    const videoRef = useRef(null);
+
+    useEffect(() => {
+        const video = videoRef.current;
+
+        if (!video) {
+            return;
+        }
+
+        video.srcObject = stream || null;
+
+        if (stream) {
+            video.play().catch(() => {});
+        }
+
+        return () => {
+            video.srcObject = null;
+        };
+    }, [stream]);
+
+    return (
+        <video
+            ref={videoRef}
+            muted
+            autoPlay
+            playsInline
+            className={styles.screenSelectionPreviewVideo}
+            aria-label="Prévia local da tela selecionada"
+        />
+    );
+}
+
+
+function formatStreamQuality(settings) {
+
+    if (!settings) {
+        return "";
+    }
+
+    const height = Number(settings.height);
+    const frameRate = Math.round(Number(settings.frameRate) || 0);
+    const resolution = height
+        ? `${height}p`
+        : "Qualidade automática";
+
+    return frameRate
+        ? `${resolution} • ${frameRate} FPS`
+        : resolution;
+}
+
+
+function formatDisplaySurface(displaySurface) {
+    return {
+        monitor: "Tela inteira",
+        window: "Janela",
+        browser: "Aba do navegador"
+    }[displaySurface] || "Tela selecionada";
 }
 
 
@@ -193,6 +328,12 @@ function WatchRoom() {
     const [room, setRoom] = useState(null);
 
     const [isLoading, setIsLoading] = useState(true);
+
+    const [authUserId, setAuthUserId] = useState(null);
+
+    const isRoomOwner = Boolean(
+        authUserId && room?.ownerId && authUserId === room.ownerId
+    );
 
     /*
     ============================================================
@@ -308,8 +449,23 @@ function WatchRoom() {
 
     const [participants, setParticipants] = useState([]);
 
+    const participantsRef = useRef([]);
+
     const [showParticipants, setShowParticipants] =
         useState(false);
+
+    const [blockedScreenShareParticipants, setBlockedScreenShareParticipants] =
+        useState(() => new Set());
+
+    const blockedScreenShareParticipantsRef = useRef(new Set());
+
+    const [openParticipantMenuId, setOpenParticipantMenuId] =
+        useState(null);
+
+    const [sharePermissionNotice, setSharePermissionNotice] =
+        useState("");
+
+    const sharePermissionNoticeTimerRef = useRef(null);
 
     /*
     ============================================================
@@ -317,13 +473,97 @@ function WatchRoom() {
     ============================================================
     */
 
-    const userIdRef = useRef(
-        crypto.randomUUID()
-    );
+    const [participantId] = useState(getOrCreateParticipantId);
 
-    const usernameRef = useRef(
-        `Usuário ${Math.floor(Math.random() * 1000)}`
-    );
+    const [connectionId] = useState(() => crypto.randomUUID());
+
+    const userIdRef = useRef(connectionId);
+
+    const [username, setUsername] = useState(getSavedUsername);
+
+    const usernameRef = useRef(username);
+
+    const [showIdentityModal, setShowIdentityModal] = useState(() => !getSavedUsername());
+
+    const [isEditingUsername, setIsEditingUsername] = useState(false);
+
+    const [usernameDraft, setUsernameDraft] = useState(username);
+
+    const [usernameError, setUsernameError] = useState("");
+
+    const identityInputRef = useRef(null);
+
+    const identityReady = Boolean(username);
+
+    useEffect(() => {
+        blockedScreenShareParticipantsRef.current = blockedScreenShareParticipants;
+    }, [blockedScreenShareParticipants]);
+
+    useEffect(() => {
+        usernameRef.current = username;
+    }, [username]);
+
+    useEffect(() => {
+        if (!showIdentityModal) {
+            return;
+        }
+
+        const focusFrame = requestAnimationFrame(
+            () => identityInputRef.current?.focus()
+        );
+
+        function handleIdentityKeyDown(event) {
+            if (event.key === "Escape" && isEditingUsername) {
+                setShowIdentityModal(false);
+                setIsEditingUsername(false);
+                setUsernameError("");
+            }
+        }
+
+        document.addEventListener("keydown", handleIdentityKeyDown);
+        return () => {
+            cancelAnimationFrame(focusFrame);
+            document.removeEventListener("keydown", handleIdentityKeyDown);
+        };
+    }, [showIdentityModal, isEditingUsername]);
+
+    function openUsernameEditor() {
+        setUsernameDraft(username);
+        setUsernameError("");
+        setIsEditingUsername(true);
+        setShowIdentityModal(true);
+        setOpenParticipantMenuId(null);
+    }
+
+    async function handleSaveUsername(event) {
+        event.preventDefault();
+
+        const normalizedUsername = normalizeUsername(usernameDraft);
+        const validationError = validateUsername(normalizedUsername);
+
+        if (validationError) {
+            setUsernameError(validationError);
+            return;
+        }
+
+        saveUsername(normalizedUsername);
+        usernameRef.current = normalizedUsername;
+        setUsername(normalizedUsername);
+        setUsernameDraft(normalizedUsername);
+        setUsernameError("");
+        setShowIdentityModal(false);
+        setIsEditingUsername(false);
+
+        const activeChannel = channelRef.current;
+        if (activeChannel && realtimeService.isChannelReady(activeChannel)) {
+            await realtimeService.trackPresence(activeChannel, {
+                userId: userIdRef.current,
+                participantId,
+                username: normalizedUsername,
+                isHost: isRoomOwner
+            });
+        }
+    }
 
     /*
     ============================================================
@@ -365,7 +605,14 @@ function WatchRoom() {
 
     const announcedRemoteSharesRef = useRef(new Set());
 
-    function addRemoteScreenShare(userId, username, stream) {
+    const remoteStreamSettingsRef = useRef(new Map());
+
+    function addRemoteScreenShare(
+        userId,
+        username,
+        stream,
+        streamSettings = null
+    ) {
 
         if (!userId || !stream) {
             return;
@@ -381,6 +628,18 @@ function WatchRoom() {
             resolvedUsername
         );
 
+        const resolvedStreamSettings =
+            streamSettings ||
+            remoteStreamSettingsRef.current.get(userId) ||
+            null;
+
+        if (resolvedStreamSettings) {
+            remoteStreamSettingsRef.current.set(
+                userId,
+                resolvedStreamSettings
+            );
+        }
+
         const previous = remoteScreenSharesRef.current;
 
         const existingIndex = previous.findIndex(
@@ -395,7 +654,8 @@ function WatchRoom() {
                 {
                     userId,
                     username: resolvedUsername,
-                    stream
+                    stream,
+                    streamSettings: resolvedStreamSettings
                 }
             ];
         } else {
@@ -413,7 +673,8 @@ function WatchRoom() {
             next[existingIndex] = {
                 ...existing,
                 username: resolvedUsername,
-                stream
+                stream,
+                streamSettings: resolvedStreamSettings
             };
         }
 
@@ -430,6 +691,7 @@ function WatchRoom() {
 
         remoteShareUsernamesRef.current.delete(userId);
         announcedRemoteSharesRef.current.delete(userId);
+        remoteStreamSettingsRef.current.delete(userId);
 
         const next =
             remoteScreenSharesRef.current.filter(
@@ -452,6 +714,7 @@ function WatchRoom() {
     }
 
     function selectScreenShare(userId) {
+        setConnectionQuality(null);
         setActiveScreenShareId(userId);
     }
 
@@ -474,6 +737,53 @@ function WatchRoom() {
 
     const [screenShareError, setScreenShareError] =
         useState("");
+
+    const [showScreenShareSettings, setShowScreenShareSettings] =
+        useState(false);
+
+    const [screenShareQuality, setScreenShareQuality] =
+        useState("1080p");
+
+    const [screenShareFps, setScreenShareFps] = useState(30);
+
+    const [screenShareQualityMode, setScreenShareQualityMode] =
+        useState("auto");
+
+    const pendingScreenShareStreamRef = useRef(null);
+
+    const screenSelectionRequestRef = useRef(0);
+
+    const [pendingScreenShareStream, setPendingScreenShareStream] =
+        useState(null);
+
+    const [pendingScreenShareSettings, setPendingScreenShareSettings] =
+        useState(null);
+
+    const [isSelectingScreen, setIsSelectingScreen] = useState(false);
+
+    const [isStartingScreenShare, setIsStartingScreenShare] =
+        useState(false);
+
+    const [screenSelectionError, setScreenSelectionError] =
+        useState("");
+
+    const [localScreenShareSettings, setLocalScreenShareSettings] =
+        useState(null);
+
+    const localScreenShareSettingsRef = useRef(null);
+
+    const localScreenShareQualityModeRef = useRef("auto");
+
+    const outgoingStatsIntervalsRef = useRef(new Map());
+    const outgoingStatsPreviousRef = useRef(new Map());
+    const peerQualityProfileRef = useRef(new Map());
+    const peerQualityCountersRef = useRef(new Map());
+    const peerLastAdaptationRef = useRef(new Map());
+    const adaptiveUnsupportedPeersRef = useRef(new Set());
+
+    const [adaptiveStatus, setAdaptiveStatus] = useState(null);
+
+    const [connectionQuality, setConnectionQuality] = useState(null);
 
     /*
     ============================================================
@@ -584,6 +894,106 @@ function WatchRoom() {
         video.srcObject = null;
 
     }, [remoteScreenStream]);
+
+    useEffect(() => {
+
+        if (!activeScreenShareId) {
+            return;
+        }
+
+        const peerConnection =
+            incomingPeersRef.current.get(activeScreenShareId);
+
+        if (!peerConnection || peerConnection.signalingState === "closed") {
+            return;
+        }
+
+        let isActive = true;
+        const recentLevels = [];
+
+        async function collectConnectionStats() {
+            try {
+                const reports = await peerConnection.getStats();
+                let videoStats = null;
+
+                reports.forEach(report => {
+                    if (
+                        report.type === "inbound-rtp" &&
+                        !report.isRemote &&
+                        (report.kind === "video" || report.mediaType === "video")
+                    ) {
+                        videoStats = report;
+                    }
+                });
+
+                if (!videoStats || !isActive) {
+                    return;
+                }
+
+                const received = Number(videoStats.packetsReceived) || 0;
+                const lost = Number(videoStats.packetsLost) || 0;
+                const lossRate = lost / Math.max(received + lost, 1);
+                const jitter = Number(videoStats.jitter) || 0;
+                const decoded = Number(videoStats.framesDecoded) || 0;
+                const dropped = Number(videoStats.framesDropped) || 0;
+                const dropRate = dropped / Math.max(decoded + dropped, 1);
+
+                const level =
+                    lossRate > 0.08 || jitter > 0.2 || dropRate > 0.12
+                        ? 2
+                        : lossRate > 0.025 || jitter > 0.08 || dropRate > 0.05
+                            ? 1
+                            : 0;
+
+                recentLevels.push(level);
+
+                if (recentLevels.length > 3) {
+                    recentLevels.shift();
+                }
+
+                const poorSamples = recentLevels.filter(item => item === 2).length;
+                const mediumSamples = recentLevels.filter(item => item >= 1).length;
+                const quality = poorSamples >= 2
+                    ? "poor"
+                    : mediumSamples >= 2
+                        ? "medium"
+                        : "good";
+
+                setConnectionQuality({
+                    level: quality,
+                    text: quality === "good"
+                        ? "Boa conexão"
+                        : quality === "medium"
+                            ? "Conexão instável"
+                            : "Conexão ruim",
+                    stats: {
+                        packetsLost: lost,
+                        packetsReceived: received,
+                        framesDecoded: decoded,
+                        framesDropped: dropped,
+                        framesPerSecond:
+                            Number(videoStats.framesPerSecond) || 0,
+                        jitter,
+                        bytesReceived:
+                            Number(videoStats.bytesReceived) || 0
+                    }
+                });
+            } catch (error) {
+                if (isActive) {
+                    console.warn("[ScreenShare] Falha ao obter getStats:", error);
+                }
+            }
+        }
+
+        void collectConnectionStats();
+        const intervalId = setInterval(collectConnectionStats, 2500);
+
+        return () => {
+            isActive = false;
+            clearInterval(intervalId);
+        };
+
+    }, [activeScreenShareId]);
 
     /*
     ============================================================
@@ -923,6 +1333,248 @@ function WatchRoom() {
         return userId === userIdRef.current;
     }
 
+    function getMaximumAdaptiveProfileIndex() {
+        const settings = localScreenShareSettingsRef.current;
+        return settings?.selectedQuality === "720p" &&
+            settings?.selectedFps === 30
+            ? 2
+            : 3;
+    }
+
+    function refreshAdaptiveStatus() {
+        const maximumIndex = getMaximumAdaptiveProfileIndex();
+        const profiles = Array.from(peerQualityProfileRef.current.values());
+        const lowestIndex = profiles.length
+            ? Math.min(...profiles)
+            : maximumIndex;
+
+        setAdaptiveStatus(
+            lowestIndex < maximumIndex
+                ? `⚡ Ajustando qualidade: ${ADAPTIVE_PROFILES[lowestIndex].label}`
+                : null
+        );
+    }
+
+    function stopOutgoingStatsMonitor(userId) {
+        const intervalId = outgoingStatsIntervalsRef.current.get(userId);
+
+        if (intervalId) {
+            clearInterval(intervalId);
+            outgoingStatsIntervalsRef.current.delete(userId);
+            console.log("[ScreenShare][Adaptive] Monitor encerrado:", userId);
+        }
+
+        outgoingStatsPreviousRef.current.delete(userId);
+        peerQualityProfileRef.current.delete(userId);
+        peerQualityCountersRef.current.delete(userId);
+        peerLastAdaptationRef.current.delete(userId);
+        adaptiveUnsupportedPeersRef.current.delete(userId);
+    }
+
+    async function applyAdaptiveProfile(
+        userId,
+        peerConnection,
+        profileIndex
+    ) {
+        if (
+            localScreenShareQualityModeRef.current !== "auto" ||
+            adaptiveUnsupportedPeersRef.current.has(userId) ||
+            outgoingPeersRef.current.get(userId) !== peerConnection
+        ) {
+            return false;
+        }
+
+        const profile = getAdaptiveProfile(
+            profileIndex,
+            localScreenShareSettingsRef.current
+        );
+
+        try {
+            await screenShareService.setVideoSenderParameters(
+                peerConnection,
+                profile
+            );
+
+            if (
+                outgoingPeersRef.current.get(userId) !== peerConnection
+            ) {
+                return false;
+            }
+
+            peerQualityProfileRef.current.set(userId, profileIndex);
+            peerLastAdaptationRef.current.set(userId, getCurrentTimestamp());
+            console.log(
+                "[ScreenShare][Adaptive] Perfil alterado:",
+                userId,
+                profile.id
+            );
+            refreshAdaptiveStatus();
+            return true;
+        } catch (error) {
+            adaptiveUnsupportedPeersRef.current.add(userId);
+            console.warn(
+                "[ScreenShare][Adaptive] setParameters não suportado:",
+                userId,
+                error
+            );
+            return false;
+        }
+    }
+
+    async function collectOutgoingStats(userId, peerConnection) {
+        if (
+            outgoingPeersRef.current.get(userId) !== peerConnection ||
+            peerConnection.connectionState !== "connected" ||
+            peerRecoveryInProgressRef.current.has(
+                getPeerStateKey(userId, "outgoing")
+            )
+        ) {
+            return;
+        }
+
+        try {
+            const reports = await screenShareService.getPeerStats(peerConnection);
+
+            if (!reports) {
+                return;
+            }
+
+            let outbound = null;
+            let remoteInbound = null;
+
+            reports.forEach(report => {
+                if (
+                    report.type === "outbound-rtp" &&
+                    !report.isRemote &&
+                    (report.kind === "video" || report.mediaType === "video")
+                ) {
+                    outbound = report;
+                }
+
+                if (
+                    report.type === "remote-inbound-rtp" &&
+                    (report.kind === "video" || report.mediaType === "video")
+                ) {
+                    remoteInbound = report;
+                }
+            });
+
+            if (!outbound) {
+                return;
+            }
+
+            const current = {
+                timestamp: Number(outbound.timestamp) || getCurrentTimestamp(),
+                bytesSent: Number(outbound.bytesSent) || 0,
+                packetsSent: Number(outbound.packetsSent) || 0,
+                packetsLost: Number(remoteInbound?.packetsLost) || 0,
+                framesEncoded: Number(outbound.framesEncoded) || 0
+            };
+            const previous = outgoingStatsPreviousRef.current.get(userId);
+            outgoingStatsPreviousRef.current.set(userId, current);
+
+            if (!previous) {
+                return;
+            }
+
+            const seconds = Math.max(
+                (current.timestamp - previous.timestamp) / 1000,
+                0.001
+            );
+            const bitrate = Math.max(
+                ((current.bytesSent - previous.bytesSent) * 8) / seconds,
+                0
+            );
+            const sentDelta = Math.max(current.packetsSent - previous.packetsSent, 0);
+            const lostDelta = Math.max(current.packetsLost - previous.packetsLost, 0);
+            const packetLossRate = Number.isFinite(remoteInbound?.fractionLost)
+                ? Number(remoteInbound.fractionLost)
+                : lostDelta / Math.max(sentDelta + lostDelta, 1);
+            const rtt = Number(remoteInbound?.roundTripTime) || 0;
+            const jitter = Number(remoteInbound?.jitter) || 0;
+
+            const quality = packetLossRate > 0.08 || rtt > 0.45 || jitter > 0.2
+                ? "poor"
+                : packetLossRate > 0.025 || rtt > 0.22 || jitter > 0.08
+                    ? "medium"
+                    : "good";
+
+            console.debug(
+                "[ScreenShare][Adaptive] Bitrate aproximado:",
+                userId,
+                `${(bitrate / 1_000_000).toFixed(2)} Mbps`
+            );
+
+            const counters = peerQualityCountersRef.current.get(userId) || {
+                good: 0,
+                medium: 0,
+                poor: 0
+            };
+            counters.good = quality === "good" ? counters.good + 1 : 0;
+            counters.medium = quality === "medium" ? counters.medium + 1 : 0;
+            counters.poor = quality === "poor" ? counters.poor + 1 : 0;
+            peerQualityCountersRef.current.set(userId, counters);
+
+            console.log(
+                "[ScreenShare][Adaptive] Qualidade avaliada:",
+                userId,
+                quality
+            );
+
+            const maximumIndex = getMaximumAdaptiveProfileIndex();
+            const currentIndex = peerQualityProfileRef.current.get(userId) ?? maximumIndex;
+            const cooldownElapsed =
+                getCurrentTimestamp() -
+                    (peerLastAdaptationRef.current.get(userId) || 0) >= 5000;
+            let nextIndex = currentIndex;
+
+            if (cooldownElapsed && counters.poor >= 2) {
+                nextIndex = Math.max(currentIndex - 2, 0);
+            } else if (cooldownElapsed && counters.medium >= 2) {
+                nextIndex = Math.max(currentIndex - 1, 0);
+            } else if (cooldownElapsed && counters.good >= 4) {
+                nextIndex = Math.min(currentIndex + 1, maximumIndex);
+            }
+
+            if (nextIndex !== currentIndex) {
+                counters.good = 0;
+                counters.medium = 0;
+                counters.poor = 0;
+                await applyAdaptiveProfile(userId, peerConnection, nextIndex);
+            }
+        } catch (error) {
+            console.warn("[ScreenShare][Adaptive] Falha no monitor:", userId, error);
+        }
+    }
+
+    async function startOutgoingStatsMonitor(userId, peerConnection) {
+        if (localScreenShareQualityModeRef.current !== "auto") {
+            return;
+        }
+
+        stopOutgoingStatsMonitor(userId);
+        const maximumIndex = getMaximumAdaptiveProfileIndex();
+        const supported = await applyAdaptiveProfile(
+            userId,
+            peerConnection,
+            maximumIndex
+        );
+
+        if (
+            !supported ||
+            outgoingPeersRef.current.get(userId) !== peerConnection
+        ) {
+            return;
+        }
+
+        const intervalId = setInterval(() => {
+            void collectOutgoingStats(userId, peerConnection);
+        }, 2750);
+
+        outgoingStatsIntervalsRef.current.set(userId, intervalId);
+        console.log("[ScreenShare][Adaptive] Monitor iniciado:", userId);
+    }
+
     function getPeerStateKey(userId, direction) {
         return `${direction}:${userId}`;
     }
@@ -953,6 +1605,7 @@ function WatchRoom() {
             outgoingPeersRef.current.get(userId);
 
         if (!peer) {
+            stopOutgoingStatsMonitor(userId);
             return;
         }
 
@@ -961,6 +1614,8 @@ function WatchRoom() {
         pendingIceCandidatesRef.current.delete(
             `${userId}:${userIdRef.current}`
         );
+        stopOutgoingStatsMonitor(userId);
+        refreshAdaptiveStatus();
 
         screenShareService.closePeerConnection(peer);
     }
@@ -1000,6 +1655,10 @@ function WatchRoom() {
             incomingPeersRef.current.values()
         );
 
+        Array.from(outgoingStatsIntervalsRef.current.keys()).forEach(
+            userId => stopOutgoingStatsMonitor(userId)
+        );
+
         outgoingPeersRef.current.clear();
 
         incomingPeersRef.current.clear();
@@ -1021,6 +1680,13 @@ function WatchRoom() {
         peerDisconnectTimersRef.current.clear();
         peerRecoveryAttemptsRef.current.clear();
         peerRecoveryInProgressRef.current.clear();
+        outgoingStatsIntervalsRef.current.clear();
+        outgoingStatsPreviousRef.current.clear();
+        peerQualityProfileRef.current.clear();
+        peerQualityCountersRef.current.clear();
+        peerLastAdaptationRef.current.clear();
+        adaptiveUnsupportedPeersRef.current.clear();
+        setAdaptiveStatus(null);
     }
 
     async function flushPendingIceCandidates(
@@ -1116,6 +1782,10 @@ function WatchRoom() {
                     username: usernameRef.current,
                     shareOwnerId: userIdRef.current,
                     iceRestart: true,
+                    qualityMode:
+                        localScreenShareQualityModeRef.current,
+                    streamSettings:
+                        localScreenShareSettingsRef.current,
                     offer
                 }
             );
@@ -1374,8 +2044,17 @@ function WatchRoom() {
                     targetId: remoteUserId,
                     username: usernameRef.current,
                     shareOwnerId: userIdRef.current,
+                    qualityMode:
+                        localScreenShareQualityModeRef.current,
+                    streamSettings:
+                        localScreenShareSettingsRef.current,
                     offer
                 }
+            );
+
+            await startOutgoingStatsMonitor(
+                remoteUserId,
+                peerConnection
             );
 
         } catch (error) {
@@ -1397,12 +2076,256 @@ function WatchRoom() {
     ============================================================
     */
 
-    async function handleStartScreenShare() {
+    const isCurrentUserScreenShareBlocked =
+        blockedScreenShareParticipants.has(participantId);
+
+    const activeScreenShareCount =
+        remoteScreenShares.length + (isScreenSharing ? 1 : 0);
+
+    const isScreenShareLimitReached =
+        activeScreenShareCount >= MAX_SIMULTANEOUS_SCREEN_SHARES;
+
+    const screenShareUnavailableReason =
+        isCurrentUserScreenShareBlocked
+            ? "Compartilhamento desativado pelo host"
+            : isScreenShareLimitReached
+                ? "Limite de transmissões simultâneas atingido"
+                : "";
+
+    function showSharePermissionNotice(message) {
+        if (sharePermissionNoticeTimerRef.current) {
+            clearTimeout(sharePermissionNoticeTimerRef.current);
+        }
+
+        setSharePermissionNotice(message);
+        sharePermissionNoticeTimerRef.current = setTimeout(() => {
+            setSharePermissionNotice("");
+            sharePermissionNoticeTimerRef.current = null;
+        }, 5000);
+    }
+
+    async function sendScreenShareAdminSignal(type, targetId, targetParticipantId) {
+        if (
+            !isRoomOwner ||
+            !targetId ||
+            targetId === userIdRef.current ||
+            !["permission-blocked", "permission-unblocked", "force-stop"]
+                .includes(type)
+        ) {
+            return;
+        }
+
+        await screenShareService.sendSignal(
+            getActiveChannel(),
+            {
+                type,
+                senderId: userIdRef.current,
+                targetId,
+                targetParticipantId
+            }
+        );
+    }
+
+    async function handleToggleScreenSharePermission(targetParticipant) {
+        if (!isRoomOwner) {
+            return;
+        }
+
+        const targetId = targetParticipant?.userId;
+        const targetParticipantId = targetParticipant?.participantId || targetId;
+        const shouldUnblock = blockedScreenShareParticipants.has(targetParticipantId);
+
+        setBlockedScreenShareParticipants(previous => {
+            const next = new Set(previous);
+            if (shouldUnblock) {
+                next.delete(targetParticipantId);
+            } else {
+                next.add(targetParticipantId);
+            }
+            return next;
+        });
+
+        setOpenParticipantMenuId(null);
+        const targetConnections = participantsRef.current.filter(
+            participant =>
+                (participant.participantId || participant.userId) === targetParticipantId
+        );
+
+        await Promise.all(targetConnections.map(participant =>
+            sendScreenShareAdminSignal(
+                shouldUnblock ? "permission-unblocked" : "permission-blocked",
+                participant.userId,
+                targetParticipantId
+            )
+        ));
+    }
+
+    async function handleForceStopScreenShare(targetId) {
+        if (!isRoomOwner) {
+            return;
+        }
+
+        await sendScreenShareAdminSignal("force-stop", targetId);
+    }
+
+    function handleStartScreenShare() {
+
+        if (isCurrentUserScreenShareBlocked) {
+            showSharePermissionNotice(
+                "Compartilhamento desativado pelo host."
+            );
+            return;
+        }
+
+        if (isScreenShareLimitReached) {
+            showSharePermissionNotice(
+                "Limite de transmissões simultâneas atingido."
+            );
+            return;
+        }
 
         if (
             isScreenSharing ||
             localScreenStreamRef.current ||
             isStoppingScreenShareRef.current
+        ) {
+            return;
+        }
+
+        setScreenShareError("");
+        setScreenSelectionError("");
+        setShowScreenShareSettings(true);
+    }
+
+    function clearPendingScreenShare() {
+        screenSelectionRequestRef.current += 1;
+        const stream = pendingScreenShareStreamRef.current;
+
+        if (stream) {
+            stream.getTracks().forEach(track => {
+                track.onended = null;
+                track.stop();
+            });
+        }
+
+        pendingScreenShareStreamRef.current = null;
+        setPendingScreenShareStream(null);
+        setPendingScreenShareSettings(null);
+        setIsSelectingScreen(false);
+    }
+
+    function closeScreenShareSettings() {
+        if (isStartingScreenShare) {
+            return;
+        }
+
+        clearPendingScreenShare();
+        setScreenSelectionError("");
+        setShowScreenShareSettings(false);
+    }
+
+    async function selectScreenForSharing() {
+        if (blockedScreenShareParticipants.has(participantId)) {
+            showSharePermissionNotice("Compartilhamento desativado pelo host.");
+            return;
+        }
+
+        if (
+            remoteScreenShares.length + (isScreenSharing ? 1 : 0) >=
+            MAX_SIMULTANEOUS_SCREEN_SHARES
+        ) {
+            showSharePermissionNotice(
+                "Limite de transmissões simultâneas atingido."
+            );
+            return;
+        }
+
+        if (isSelectingScreen || isStartingScreenShare) {
+            return;
+        }
+
+        clearPendingScreenShare();
+        const requestId = screenSelectionRequestRef.current;
+        setIsSelectingScreen(true);
+        setScreenSelectionError("");
+
+        try {
+            const stream = await screenShareService.startScreenShare();
+
+            if (screenSelectionRequestRef.current !== requestId) {
+                screenShareService.stopScreenShare(stream);
+                return;
+            }
+
+            const videoTrack = stream.getVideoTracks()[0];
+
+            if (!videoTrack) {
+                screenShareService.stopScreenShare(stream);
+                throw new Error("NotFoundError");
+            }
+
+            pendingScreenShareStreamRef.current = stream;
+            setPendingScreenShareStream(stream);
+            setPendingScreenShareSettings(videoTrack.getSettings());
+
+            videoTrack.onended = () => {
+                if (pendingScreenShareStreamRef.current === stream) {
+                    pendingScreenShareStreamRef.current = null;
+                    setPendingScreenShareStream(null);
+                    setPendingScreenShareSettings(null);
+                }
+            };
+        } catch (error) {
+            if (screenSelectionRequestRef.current !== requestId) {
+                return;
+            }
+
+            const messages = {
+                NotAllowedError: "O compartilhamento foi cancelado.",
+                AbortError: "O compartilhamento foi cancelado.",
+                NotFoundError: "Nenhuma tela disponível foi encontrada.",
+                NotReadableError: "A tela selecionada não pôde ser capturada.",
+                OverconstrainedError: "A configuração escolhida não é suportada."
+            };
+
+            setScreenSelectionError(
+                messages[error?.name] ||
+                messages[error?.message] ||
+                "Não foi possível selecionar a tela."
+            );
+        } finally {
+            if (screenSelectionRequestRef.current === requestId) {
+                setIsSelectingScreen(false);
+            }
+        }
+    }
+
+    async function confirmStartScreenShare() {
+
+        const selectedStream = pendingScreenShareStreamRef.current;
+
+        if (blockedScreenShareParticipants.has(participantId)) {
+            showSharePermissionNotice("Compartilhamento desativado pelo host.");
+            closeScreenShareSettings();
+            return;
+        }
+
+        if (
+            remoteScreenShares.length + (isScreenSharing ? 1 : 0) >=
+            MAX_SIMULTANEOUS_SCREEN_SHARES
+        ) {
+            showSharePermissionNotice(
+                "Limite de transmissões simultâneas atingido."
+            );
+            return;
+        }
+
+        if (
+            isScreenSharing ||
+            localScreenStreamRef.current ||
+            isStoppingScreenShareRef.current ||
+            isStartingScreenShare ||
+            !selectedStream
         ) {
             return;
         }
@@ -1425,19 +2348,50 @@ function WatchRoom() {
         }
 
         setScreenShareError("");
+        setIsStartingScreenShare(true);
 
         try {
 
-            const stream =
-                await screenShareService.startScreenShare();
+            const stream = selectedStream;
+            const videoTrack = stream.getVideoTracks()[0];
+            const quality = screenShareQuality === "720p"
+                ? { width: 1280, height: 720 }
+                : { width: 1920, height: 1080 };
+
+            if (videoTrack?.applyConstraints) {
+                try {
+                    await videoTrack.applyConstraints({
+                        width: { ideal: quality.width },
+                        height: { ideal: quality.height },
+                        frameRate: { ideal: screenShareFps }
+                    });
+                } catch (error) {
+                    console.warn(
+                        "[ScreenShare] Preferências de qualidade não aplicadas:",
+                        error
+                    );
+                }
+            }
+
+            const actualSettings = {
+                ...(videoTrack?.getSettings?.() || {}),
+                selectedQuality: screenShareQuality,
+                selectedFps: screenShareFps,
+                qualityMode: screenShareQualityMode
+            };
+
+            pendingScreenShareStreamRef.current = null;
+            setPendingScreenShareStream(null);
+            setPendingScreenShareSettings(null);
 
             localScreenStreamRef.current =
                 stream;
 
-            setIsScreenSharing(true);
+            localScreenShareSettingsRef.current = actualSettings;
+            localScreenShareQualityModeRef.current = screenShareQualityMode;
+            setLocalScreenShareSettings(actualSettings);
 
-            const videoTrack =
-                stream.getVideoTracks()[0];
+            setIsScreenSharing(true);
 
             if (videoTrack) {
 
@@ -1454,7 +2408,9 @@ function WatchRoom() {
                 {
                     type: "started",
                     senderId: userIdRef.current,
-                    username: usernameRef.current
+                    username: usernameRef.current,
+                    qualityMode: screenShareQualityMode,
+                    streamSettings: actualSettings
                 }
             );
 
@@ -1472,6 +2428,8 @@ function WatchRoom() {
                 );
             }
 
+            setShowScreenShareSettings(false);
+
         } catch (error) {
 
             console.error(
@@ -1487,7 +2445,13 @@ function WatchRoom() {
 
             localScreenStreamRef.current = null;
 
+            screenShareService.stopScreenShare(selectedStream);
+            localScreenShareSettingsRef.current = null;
+            setLocalScreenShareSettings(null);
+
             setIsScreenSharing(false);
+        } finally {
+            setIsStartingScreenShare(false);
         }
     }
 
@@ -1517,6 +2481,9 @@ function WatchRoom() {
 
         try {
             localScreenStreamRef.current = null;
+
+            localScreenShareSettingsRef.current = null;
+            setLocalScreenShareSettings(null);
 
             setIsScreenSharing(false);
 
@@ -1577,6 +2544,13 @@ function WatchRoom() {
             signal.username || "Participante"
         );
 
+        if (signal.streamSettings) {
+            remoteStreamSettingsRef.current.set(
+                remoteUserId,
+                signal.streamSettings
+            );
+        }
+
         const existingPeer =
             incomingPeersRef.current.get(remoteUserId);
 
@@ -1608,7 +2582,8 @@ function WatchRoom() {
                     addRemoteScreenShare(
                         remoteUserId,
                         signal.username,
-                        stream
+                        stream,
+                        signal.streamSettings
                     );
 
                     stream.getTracks().forEach(track => {
@@ -1883,7 +2858,66 @@ function WatchRoom() {
 
         try {
 
+            const isAdministrativeSignal = [
+                "permission-blocked",
+                "permission-unblocked",
+                "force-stop"
+            ].includes(signal.type);
+
+            if (isAdministrativeSignal) {
+                const senderIsHost = participantsRef.current.some(
+                    participant =>
+                        participant.userId === signal.senderId &&
+                        participant.isHost === true
+                );
+
+                if (
+                    !signal.senderId ||
+                    !signal.targetId ||
+                    !senderIsHost ||
+                    (signal.targetParticipantId && signal.targetParticipantId !== participantId)
+                ) {
+                    console.warn(
+                        "[ScreenShare] Controle administrativo inválido ignorado."
+                    );
+                    return;
+                }
+            }
+
             switch (signal.type) {
+
+                case "permission-blocked":
+                    clearPendingScreenShare();
+                    setShowScreenShareSettings(false);
+                    setBlockedScreenShareParticipants(previous => {
+                        const next = new Set(previous);
+                        next.add(participantId);
+                        return next;
+                    });
+                    showSharePermissionNotice(
+                        "Compartilhamento desativado pelo host."
+                    );
+                    break;
+
+                case "permission-unblocked":
+                    setBlockedScreenShareParticipants(previous => {
+                        const next = new Set(previous);
+                        next.delete(participantId);
+                        return next;
+                    });
+                    showSharePermissionNotice(
+                        "O host permitiu seu compartilhamento."
+                    );
+                    break;
+
+                case "force-stop":
+                    clearPendingScreenShare();
+                    setShowScreenShareSettings(false);
+                    await handleStopScreenShare();
+                    showSharePermissionNotice(
+                        "O host encerrou seu compartilhamento."
+                    );
+                    break;
 
                 case "started":
 
@@ -1891,6 +2925,13 @@ function WatchRoom() {
                         signal.senderId,
                         signal.username || "Participante"
                     );
+
+                    if (signal.streamSettings) {
+                        remoteStreamSettingsRef.current.set(
+                            signal.senderId,
+                            signal.streamSettings
+                        );
+                    }
 
                     if (
                         !announcedRemoteSharesRef.current.has(
@@ -1966,11 +3007,6 @@ function WatchRoom() {
     */
 
     async function handleParticipantJoin(payload) {
-
-        if (!localScreenStreamRef.current) {
-            return;
-        }
-
         const joins =
             payload?.newPresences || [];
 
@@ -1984,6 +3020,23 @@ function WatchRoom() {
                 joinedUser.userId ===
                 userIdRef.current
             ) {
+                continue;
+            }
+
+            const joinedParticipantId = joinedUser.participantId || joinedUser.userId;
+
+            if (
+                isRoomOwner &&
+                blockedScreenShareParticipantsRef.current.has(joinedParticipantId)
+            ) {
+                await sendScreenShareAdminSignal(
+                    "permission-blocked",
+                    joinedUser.userId,
+                    joinedParticipantId
+                );
+            }
+
+            if (!localScreenStreamRef.current) {
                 continue;
             }
 
@@ -2006,9 +3059,17 @@ function WatchRoom() {
                 return;
             }
 
+            if (leftUser.isHost) {
+                setBlockedScreenShareParticipants(new Set());
+            }
+
             closeIncomingPeer(leftUserId);
             closeOutgoingPeer(leftUserId);
             removeRemoteScreenShare(leftUserId);
+
+            setOpenParticipantMenuId(current =>
+                current === leftUserId ? null : current
+            );
 
             Array.from(
                 pendingIceCandidatesRef.current.keys()
@@ -2036,8 +3097,10 @@ function WatchRoom() {
 
             try {
 
-                const foundRoom =
-                    await getRoomById(roomId);
+                const [foundRoom, session] = await Promise.all([
+                    getRoomById(roomId),
+                    realtimeService.ensureAnonymousSession()
+                ]);
 
                 if (!isActive) {
                     return;
@@ -2046,6 +3109,8 @@ function WatchRoom() {
                 setRoom(
                     foundRoom || null
                 );
+
+                setAuthUserId(session?.user?.id || null);
 
             } catch (error) {
 
@@ -2088,7 +3153,69 @@ function WatchRoom() {
 
     useEffect(() => {
 
+        if (!openParticipantMenuId) {
+            return;
+        }
+
+        function closeParticipantMenu(event) {
+            if (event.type === "keydown" && event.key !== "Escape") {
+                return;
+            }
+            setOpenParticipantMenuId(null);
+        }
+
+        document.addEventListener("pointerdown", closeParticipantMenu);
+        document.addEventListener("keydown", closeParticipantMenu);
+
+        return () => {
+            document.removeEventListener("pointerdown", closeParticipantMenu);
+            document.removeEventListener("keydown", closeParticipantMenu);
+        };
+
+    }, [openParticipantMenuId]);
+
+    useEffect(() => {
+
+        return () => {
+            if (sharePermissionNoticeTimerRef.current) {
+                clearTimeout(sharePermissionNoticeTimerRef.current);
+            }
+        };
+
+    }, []);
+
+    useEffect(() => {
+
+        if (!showScreenShareSettings) {
+            return;
+        }
+
+        function handleModalKeyDown(event) {
+            if (event.key === "Escape") {
+                closeScreenShareSettings();
+            }
+        }
+
+        document.addEventListener("keydown", handleModalKeyDown);
+
+        return () => {
+            document.removeEventListener("keydown", handleModalKeyDown);
+        };
+
+    }, [showScreenShareSettings, closeScreenShareSettings]);
+
+    useEffect(() => {
+
         function handlePageExit() {
+
+            screenSelectionRequestRef.current += 1;
+
+            const pendingStream = pendingScreenShareStreamRef.current;
+
+            if (pendingStream) {
+                screenShareService.stopScreenShare(pendingStream);
+                pendingScreenShareStreamRef.current = null;
+            }
 
             const localStream = localScreenStreamRef.current;
 
@@ -2109,6 +3236,7 @@ function WatchRoom() {
         return () => {
             window.removeEventListener("pagehide", handlePageExit);
             window.removeEventListener("beforeunload", handlePageExit);
+            handlePageExit();
         };
 
     }, []);
@@ -2121,9 +3249,18 @@ function WatchRoom() {
 
     useEffect(() => {
 
-        if (!roomId) {
+        if (
+            !roomId ||
+            !room?.ownerId ||
+            !authUserId ||
+            !identityReady ||
+            room.id !== roomId
+        ) {
             return;
         }
+
+        const presenceIsHost =
+            authUserId === room.ownerId;
 
         if (isConnectingRef.current) {
             return;
@@ -2136,6 +3273,9 @@ function WatchRoom() {
 
         const announcedRemoteShares =
             announcedRemoteSharesRef.current;
+
+        const remoteStreamSettings =
+            remoteStreamSettingsRef.current;
 
         isConnectingRef.current = true;
 
@@ -2237,6 +3377,21 @@ function WatchRoom() {
                     uniqueUsers
                 );
 
+                participantsRef.current = uniqueUsers;
+
+                setRemoteScreenShares(previous => {
+                    const renamedShares = previous.map(share => {
+                    const participant = uniqueUsers.find(
+                        user => user.userId === share.userId
+                    );
+                    return participant?.username && participant.username !== share.username
+                        ? { ...share, username: participant.username }
+                        : share;
+                    });
+                    remoteScreenSharesRef.current = renamedShares;
+                    return renamedShares;
+                });
+
                 const hasCurrentUser = uniqueUsers.some(
                     user => user.userId === userIdRef.current
                 );
@@ -2252,7 +3407,9 @@ function WatchRoom() {
                         channel,
                         {
                             userId: userIdRef.current,
-                            username: usernameRef.current
+                            participantId,
+                            username: usernameRef.current,
+                            isHost: presenceIsHost
                         }
                     ).catch(error => {
                         console.warn(
@@ -2329,8 +3486,11 @@ function WatchRoom() {
                 const currentUser = {
                     userId:
                         userIdRef.current,
+                    participantId,
                     username:
-                        usernameRef.current
+                        usernameRef.current,
+                    isHost:
+                        presenceIsHost
                 };
 
                 try {
@@ -2408,6 +3568,10 @@ function WatchRoom() {
 
             announcedRemoteShares.clear();
 
+            remoteStreamSettings.clear();
+
+            localScreenShareSettingsRef.current = null;
+
             setParticipants([]);
 
             if (
@@ -2423,7 +3587,7 @@ function WatchRoom() {
             }
         };
 
-    }, [roomId]);
+    }, [roomId, room, authUserId, identityReady, participantId]);
 
     /*
     ============================================================
@@ -2454,6 +3618,7 @@ function WatchRoom() {
                 crypto.randomUUID(),
             userId:
                 userIdRef.current,
+            participantId,
             username:
                 usernameRef.current,
             message:
@@ -2571,7 +3736,7 @@ function WatchRoom() {
         participants.find(
             participant =>
                 participant.userId ===
-                userIdRef.current
+                connectionId
         );
 
     const participantCount =
@@ -2694,7 +3859,9 @@ function WatchRoom() {
                     SIDEBAR ESQUERDA
                 ================================================== */}
 
-                <aside className={styles.leftSidebar}>
+                <aside className={`${styles.leftSidebar} ${
+                    showParticipants ? styles.mobileParticipantsOpen : ""
+                }`}>
 
                     <div className={styles.sidebarHeader}>
 
@@ -2728,7 +3895,7 @@ function WatchRoom() {
 
                                     const isUser =
                                         participant.userId ===
-                                        userIdRef.current;
+                                        connectionId;
 
                                     const isSharing =
                                         (isUser && isScreenSharing) ||
@@ -2800,6 +3967,12 @@ function WatchRoom() {
                                                         </span>
                                                     )}
 
+                                                    {participant.isHost && (
+                                                        <span className={styles.hostBadge}>
+                                                            HOST
+                                                        </span>
+                                                    )}
+
                                                 </div>
 
                                                 {isSharing && (
@@ -2813,6 +3986,52 @@ function WatchRoom() {
                                                 )}
 
                                             </div>
+
+                                            {isRoomOwner && !isUser && (
+                                                <div
+                                                    className={styles.participantActions}
+                                                    onPointerDown={event => event.stopPropagation()}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        className={styles.participantMenuButton}
+                                                        onClick={() => {
+                                                            setOpenParticipantMenuId(current =>
+                                                                current === participant.userId
+                                                                    ? null
+                                                                    : participant.userId
+                                                            );
+                                                        }}
+                                                        aria-label={`Ações de ${participant.username}`}
+                                                        aria-expanded={
+                                                            openParticipantMenuId ===
+                                                            participant.userId
+                                                        }
+                                                    >
+                                                        ⋯
+                                                    </button>
+
+                                                    {openParticipantMenuId === participant.userId && (
+                                                        <div className={styles.participantAdminMenu}>
+                                                            <button
+                                                                type="button"
+                                                                className={styles.participantAdminAction}
+                                                                onClick={() =>
+                                                                    void handleToggleScreenSharePermission(
+                                                                        participant
+                                                                    )
+                                                                }
+                                                            >
+                                                                {blockedScreenShareParticipants.has(
+                                                                    participant.participantId || participant.userId
+                                                                )
+                                                                    ? "Permitir compartilhamento"
+                                                                    : "Bloquear compartilhamento"}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
 
                                         </div>
                                     );
@@ -2842,7 +4061,7 @@ function WatchRoom() {
                         <div className={styles.currentUserInfo}>
 
                             <strong>
-                                {usernameRef.current}
+                                {username}
                             </strong>
 
                             <span>
@@ -2850,6 +4069,16 @@ function WatchRoom() {
                             </span>
 
                         </div>
+
+                        <button
+                            type="button"
+                            className={styles.editUsernameButton}
+                            onClick={openUsernameEditor}
+                            aria-label="Editar nome"
+                            title="Editar nome"
+                        >
+                            ✎
+                        </button>
 
                     </div>
 
@@ -2924,6 +4153,20 @@ function WatchRoom() {
                                     <span>
                                         está compartilhando a tela
                                     </span>
+
+                                    {connectionQuality && (
+                                        <span
+                                            className={`${styles.connectionQuality} ${
+                                                styles[
+                                                    `connection${connectionQuality.level
+                                                        .charAt(0)
+                                                        .toUpperCase()}${connectionQuality.level.slice(1)}`
+                                                ]
+                                            }`}
+                                        >
+                                            {connectionQuality.text}
+                                        </span>
+                                    )}
 
                                 </div>
 
@@ -3120,6 +4363,8 @@ function WatchRoom() {
                                         onClick={
                                             handleStartScreenShare
                                         }
+                                        disabled={Boolean(screenShareUnavailableReason)}
+                                        title={screenShareUnavailableReason}
                                     >
                                         <span>🖥</span>
                                         Compartilhar minha tela
@@ -3160,6 +4405,16 @@ function WatchRoom() {
                                         activeScreenShareId
                                     }
                                     onSelect={selectScreenShare}
+                                    isHostShare={participants.some(
+                                        participant =>
+                                            participant.userId === share.userId &&
+                                            participant.isHost
+                                    )}
+                                    canForceStop={
+                                        isRoomOwner &&
+                                        share.userId !== connectionId
+                                    }
+                                    onForceStop={handleForceStopScreenShare}
                                 />
                             ))}
                         </div>
@@ -3218,6 +4473,15 @@ function WatchRoom() {
                                     isScreenSharing
                                         ? handleStopScreenShare
                                         : handleStartScreenShare
+                                }
+                                disabled={
+                                    !isScreenSharing &&
+                                    Boolean(screenShareUnavailableReason)
+                                }
+                                title={
+                                    !isScreenSharing
+                                        ? screenShareUnavailableReason
+                                        : ""
                                 }
                             >
 
@@ -3379,6 +4643,16 @@ function WatchRoom() {
                                                     }
                                                 </strong>
 
+                                                {participant.userId === connectionId && (
+                                                    <button
+                                                        type="button"
+                                                        className={styles.mobileEditUsernameButton}
+                                                        onClick={openUsernameEditor}
+                                                    >
+                                                        Editar nome
+                                                    </button>
+                                                )}
+
                                                 <small>
                                                     Online
                                                 </small>
@@ -3436,7 +4710,7 @@ function WatchRoom() {
 
                                             const isOwn =
                                                 message.userId ===
-                                                userIdRef.current;
+                                                connectionId;
 
                                             return (
                                                 <div
@@ -3550,12 +4824,242 @@ function WatchRoom() {
 
             </div>
 
+            {(sharePermissionNotice ||
+                (!isScreenSharing && screenShareUnavailableReason)) && (
+                <div className={styles.sharePermissionNotice} role="status">
+                    {sharePermissionNotice || screenShareUnavailableReason}
+                </div>
+            )}
+
+            {showIdentityModal && (
+                <div
+                    className={styles.identityBackdrop}
+                    onMouseDown={event => {
+                        if (
+                            event.target === event.currentTarget &&
+                            isEditingUsername
+                        ) {
+                            setShowIdentityModal(false);
+                            setIsEditingUsername(false);
+                            setUsernameError("");
+                        }
+                    }}
+                >
+                    <form
+                        className={styles.identityModal}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="identity-title"
+                        onSubmit={handleSaveUsername}
+                    >
+                        <div className={styles.identityAvatar} aria-hidden="true">
+                            {normalizeUsername(usernameDraft).charAt(0).toUpperCase() || "U"}
+                        </div>
+
+                        <div className={styles.identityHeader}>
+                            <h2 id="identity-title">
+                                {isEditingUsername ? "Editar nome" : "Como devemos chamar você?"}
+                            </h2>
+                            <p>
+                                {isEditingUsername
+                                    ? "Seu novo nome aparecerá para todos na sala."
+                                    : "Escolha um nome para aparecer nesta sala."}
+                            </p>
+                        </div>
+
+                        <label className={styles.identityLabel} htmlFor="participant-username">
+                            Nome de exibição
+                        </label>
+                        <input
+                            ref={identityInputRef}
+                            id="participant-username"
+                            className={`${styles.identityInput} ${usernameError ? styles.identityInputError : ""}`}
+                            value={usernameDraft}
+                            onChange={event => {
+                                setUsernameDraft(event.target.value);
+                                if (usernameError) {
+                                    setUsernameError("");
+                                }
+                            }}
+                            maxLength={24}
+                            autoComplete="nickname"
+                            aria-describedby="identity-help identity-error"
+                        />
+                        <div id="identity-help" className={styles.identityHelp}>
+                            Entre 2 e 24 caracteres.
+                        </div>
+                        <div id="identity-error" className={styles.identityError} aria-live="polite">
+                            {usernameError}
+                        </div>
+
+                        <div className={styles.identityActions}>
+                            {isEditingUsername && (
+                                <button
+                                    type="button"
+                                    className={styles.identityCancelButton}
+                                    onClick={() => {
+                                        setShowIdentityModal(false);
+                                        setIsEditingUsername(false);
+                                        setUsernameError("");
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                            )}
+                            <button type="submit" className={styles.identityConfirmButton}>
+                                {isEditingUsername ? "Salvar" : "Entrar na sala"}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {showScreenShareSettings && (
+                <div
+                    className={styles.screenShareSettingsBackdrop}
+                    onMouseDown={event => {
+                        if (event.target === event.currentTarget) {
+                            closeScreenShareSettings();
+                        }
+                    }}
+                >
+                    <div
+                        className={styles.screenShareSettingsModal}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="screen-share-settings-title"
+                    >
+                        <header className={styles.screenShareSettingsHeader}>
+                            <div>
+                                <h2 id="screen-share-settings-title">Compartilhar sua tela</h2>
+                                <p>Configure sua transmissão antes de começar.</p>
+                            </div>
+                            <button type="button" className={styles.screenShareSettingsClose}
+                                onClick={closeScreenShareSettings} aria-label="Fechar"
+                                disabled={isStartingScreenShare}>×</button>
+                        </header>
+
+                        <div className={styles.screenShareSettingsBody}>
+                            <h3 className={styles.screenSelectionTitle}>Fonte</h3>
+                            <section className={styles.screenSelectionCard}>
+                                {pendingScreenShareStream ? (
+                                    <div className={styles.screenSelectionPreview}>
+                                        <PendingScreenPreview stream={pendingScreenShareStream} />
+                                    </div>
+                                ) : (
+                                    <div className={styles.screenSelectionPlaceholder}>
+                                        <span>▣</span>
+                                        <strong>Selecionar tela, janela ou aba</strong>
+                                        <small>O navegador abrirá o seletor seguro de tela.</small>
+                                    </div>
+                                )}
+                                <div className={styles.screenSelectionMeta}>
+                                    <div>
+                                        <strong>{pendingScreenShareSettings
+                                            ? `✓ ${formatDisplaySurface(pendingScreenShareSettings.displaySurface)}`
+                                            : "Escolha o conteúdo que deseja transmitir"}</strong>
+                                        {pendingScreenShareSettings && (
+                                            <span>{formatStreamQuality(pendingScreenShareSettings)}</span>
+                                        )}
+                                    </div>
+                                    <button type="button"
+                                        className={styles.screenSelectionChooseButton}
+                                        onClick={selectScreenForSharing}
+                                        disabled={isSelectingScreen || isStartingScreenShare}>
+                                        {isSelectingScreen ? "Aguardando seleção..."
+                                            : pendingScreenShareStream ? "Trocar tela" : "Escolher tela"}
+                                    </button>
+                                </div>
+                                {screenSelectionError && (
+                                    <p className={styles.screenSelectionError}>{screenSelectionError}</p>
+                                )}
+                            </section>
+
+                            <section className={styles.screenShareSettingsSection}>
+                                <h3>Modo de qualidade</h3>
+                                <div className={styles.screenShareOptionGrid}>
+                                    {[
+                                        {
+                                            id: "auto",
+                                            label: "Automático",
+                                            description: "Ajusta conforme a conexão."
+                                        },
+                                        {
+                                            id: "fixed",
+                                            label: "Fixo",
+                                            description: "Mantém sua preferência."
+                                        }
+                                    ].map(mode => (
+                                        <button
+                                            key={mode.id}
+                                            type="button"
+                                            className={`${styles.screenShareOption} ${styles.screenShareModeOption} ${
+                                                screenShareQualityMode === mode.id
+                                                    ? styles.screenShareOptionActive
+                                                    : ""
+                                            }`}
+                                            onClick={() => setScreenShareQualityMode(mode.id)}
+                                            aria-pressed={screenShareQualityMode === mode.id}
+                                        >
+                                            <strong>{mode.label}</strong>
+                                            <small>{mode.description}</small>
+                                        </button>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section className={styles.screenShareSettingsSection}>
+                                <h3>Qualidade</h3>
+                                <div className={styles.screenShareOptionGrid}>
+                                    {["720p", "1080p"].map(quality => (
+                                        <button key={quality} type="button"
+                                            className={`${styles.screenShareOption} ${screenShareQuality === quality ? styles.screenShareOptionActive : ""}`}
+                                            onClick={() => setScreenShareQuality(quality)}
+                                            aria-pressed={screenShareQuality === quality}>{quality}</button>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section className={styles.screenShareSettingsSection}>
+                                <h3>Taxa de quadros</h3>
+                                <div className={styles.screenShareOptionGrid}>
+                                    {[30, 60].map(fps => (
+                                        <button key={fps} type="button"
+                                            className={`${styles.screenShareOption} ${screenShareFps === fps ? styles.screenShareOptionActive : ""}`}
+                                            onClick={() => setScreenShareFps(fps)}
+                                            aria-pressed={screenShareFps === fps}>{fps} FPS</button>
+                                    ))}
+                                </div>
+                            </section>
+                        </div>
+
+                        <footer className={styles.screenShareSettingsActions}>
+                            <button type="button" className={styles.screenShareCancelButton}
+                                onClick={closeScreenShareSettings} disabled={isStartingScreenShare}>Cancelar</button>
+                            <button type="button" className={styles.screenShareConfirmButton}
+                                onClick={confirmStartScreenShare}
+                                disabled={!pendingScreenShareStream || isSelectingScreen || isStartingScreenShare}>
+                                {isStartingScreenShare ? "Iniciando..." : "Compartilhar"}
+                            </button>
+                        </footer>
+                    </div>
+                </div>
+            )}
+
             {/* ==================================================
                 STATUS LOCAL
             ================================================== */}
 
             {isScreenSharing && (
-                <div className={styles.screenSharingToast}>
+                <div
+                    className={styles.screenSharingToast}
+                    data-quality={`${formatStreamQuality(localScreenShareSettings)} • ${
+                        localScreenShareSettings?.qualityMode === "fixed"
+                            ? "Fixo"
+                            : "Automático"
+                    }`}
+                    data-adaptive={adaptiveStatus || ""}
+                >
 
                     <span
                         className={

@@ -93,15 +93,7 @@ const screenShareService = {
             await navigator.mediaDevices.getDisplayMedia({
 
                 video: {
-
-                    cursor:
-                        "always",
-
-                    frameRate: {
-                        ideal: 30,
-                        max: 60
-                    }
-
+                    cursor: "always"
                 },
 
                 audio: {
@@ -766,6 +758,74 @@ const screenShareService = {
         peerConnection.oniceconnectionstatechange = () => {
             callback(peerConnection.iceConnectionState);
         };
+    },
+
+
+    getVideoSender(peerConnection) {
+        return peerConnection?.getSenders?.().find(
+            sender => sender.track?.kind === "video"
+        ) || null;
+    },
+
+
+    async getPeerStats(peerConnection) {
+        if (
+            !peerConnection ||
+            peerConnection.signalingState === "closed"
+        ) {
+            return null;
+        }
+
+        return peerConnection.getStats();
+    },
+
+
+    async setVideoSenderParameters(peerConnection, profile) {
+        const sender = this.getVideoSender(peerConnection);
+
+        if (
+            !sender ||
+            typeof sender.getParameters !== "function" ||
+            typeof sender.setParameters !== "function"
+        ) {
+            throw new Error("RTCRtpSender.setParameters não suportado.");
+        }
+
+        const apply = async includeScale => {
+            const parameters = sender.getParameters();
+            parameters.encodings = parameters.encodings?.length
+                ? parameters.encodings
+                : [{}];
+
+            parameters.encodings = parameters.encodings.map(encoding => {
+                const next = {
+                    ...encoding,
+                    maxBitrate: profile.maxBitrate,
+                    maxFramerate: profile.maxFramerate
+                };
+
+                if (includeScale) {
+                    next.scaleResolutionDownBy =
+                        profile.scaleResolutionDownBy;
+                } else {
+                    delete next.scaleResolutionDownBy;
+                }
+
+                return next;
+            });
+
+            await sender.setParameters(parameters);
+        };
+
+        try {
+            await apply(true);
+        } catch (error) {
+            console.warn(
+                "[ScreenShare][Adaptive] scaleResolutionDownBy não aplicado:",
+                error
+            );
+            await apply(false);
+        }
     },
 
 

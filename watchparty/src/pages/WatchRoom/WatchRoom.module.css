@@ -684,6 +684,42 @@
     border-color: #7983f5;
 }
 
+.screenShareHostBadge,
+.hostBadge {
+    flex-shrink: 0;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: rgba(240, 178, 50, 0.16);
+    color: #f0b232;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+}
+
+.shareAdminButton {
+    position: absolute;
+    z-index: 3;
+    top: 7px;
+    right: 7px;
+    padding: 5px 7px;
+    border: 0;
+    border-radius: 4px;
+    background: rgba(237, 66, 69, 0.9);
+    color: #fff;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.screenPreview:hover .shareAdminButton,
+.shareAdminButton:focus-visible {
+    opacity: 1;
+}
+
+.shareAdminButton:hover { background: #c93639; }
+
 .screenPreviewVideo {
     width: 100%;
     height: 100%;
@@ -1695,6 +1731,313 @@
    RESPONSIVIDADE
    ============================================================ */
 
+.screenShareSettingsBackdrop {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(4px);
+}
+
+.shareScreenButton:disabled,
+.bottomMainControl:disabled {
+    cursor: not-allowed;
+    filter: saturate(0.35);
+    opacity: 0.58;
+}
+
+.participantActions {
+    position: relative;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.participantMenuButton {
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #b5bac1;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.participantMenuButton:hover,
+.participantMenuButton[aria-expanded="true"] {
+    background: #35373c;
+    color: #fff;
+}
+
+.participantAdminMenu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    right: 0;
+    width: 190px;
+    padding: 5px;
+    border: 1px solid #3f4147;
+    border-radius: 7px;
+    background: #111214;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+.participantAdminAction {
+    width: 100%;
+    padding: 8px 9px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #dbdee1;
+    cursor: pointer;
+    font-size: 11px;
+    text-align: left;
+}
+
+.participantAdminAction:hover { background: #35373c; }
+
+.sharePermissionNotice {
+    position: fixed;
+    z-index: 1100;
+    left: 50%;
+    bottom: 78px;
+    max-width: calc(100vw - 24px);
+    padding: 10px 14px;
+    border: 1px solid rgba(240, 178, 50, 0.35);
+    border-radius: 7px;
+    background: #1e1f22;
+    color: #f0b232;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+    font-size: 12px;
+    transform: translateX(-50%);
+}
+
+.screenShareSettingsModal {
+    width: min(680px, 100%);
+    max-height: min(820px, calc(100vh - 40px));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #3f4147;
+    border-radius: 14px;
+    background: #232428;
+    color: #f2f3f5;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+    animation: screenShareModalIn 0.18s ease-out;
+}
+
+@keyframes screenShareModalIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.screenShareSettingsHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid #3f4147;
+}
+
+.screenShareSettingsHeader h2,
+.screenShareSettingsHeader p,
+.screenShareSettingsSection h3 {
+    margin: 0;
+}
+
+.screenShareSettingsHeader h2 { font-size: 20px; }
+.screenShareSettingsHeader p { margin-top: 5px; color: #b5bac1; font-size: 12px; }
+
+.screenShareSettingsClose {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #b5bac1;
+    cursor: pointer;
+    font-size: 25px;
+}
+
+.screenShareSettingsClose:hover { background: #35373c; color: #fff; }
+
+.screenShareSettingsBody {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px 22px;
+    overflow-y: auto;
+}
+
+.screenSelectionCard {
+    flex-shrink: 0;
+
+    overflow: hidden;
+    border: 1px solid #3f4147;
+    border-radius: 10px;
+    background: #1e1f22;
+}
+
+.screenSelectionPreview,
+.screenSelectionPlaceholder {
+    aspect-ratio: 16 / 9;
+    background: #111214;
+}
+
+.screenSelectionTitle {
+    margin: 0 0 -8px;
+
+    color: #dbdee1;
+
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.screenSelectionPlaceholder {
+    min-height: 180px;
+
+    aspect-ratio: auto;
+}
+
+.screenSelectionPreviewVideo { width: 100%; height: 100%; display: block; object-fit: contain; }
+
+.screenSelectionPlaceholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #dbdee1;
+}
+
+.screenSelectionPlaceholder > span { color: #949cf7; font-size: 38px; }
+.screenSelectionPlaceholder small { color: #949ba4; }
+
+.screenSelectionMeta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    padding: 13px 14px;
+}
+
+.screenSelectionMeta > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.screenSelectionMeta strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.screenSelectionMeta span { color: #b5bac1; font-size: 11px; }
+.screenSelectionMeta button,
+.screenShareConfirmButton {
+    min-height: 38px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 5px;
+    background: #5865f2;
+    color: #fff;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.screenSelectionChooseButton {
+    min-width: 126px;
+
+    flex-shrink: 0;
+
+    box-shadow: 0 4px 12px rgba(88, 101, 242, 0.22);
+}
+
+.screenSelectionChooseButton:hover:not(:disabled) {
+    background: #4752c4;
+}
+
+.screenSelectionMeta button:disabled,
+.screenShareConfirmButton:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.screenSelectionError { margin: 0; padding: 0 14px 13px; color: #fa7779; font-size: 12px; }
+
+.screenShareSettingsSection h3 { margin-bottom: 10px; color: #dbdee1; font-size: 12px; text-transform: uppercase; }
+
+.screenShareOptionGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+.screenShareOption {
+    min-height: 46px;
+    border: 1px solid #4e5058;
+    border-radius: 7px;
+    background: #2b2d31;
+    color: #dbdee1;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.screenShareOption:hover { border-color: #949ba4; background: #35373c; }
+.screenShareOptionActive { border-color: #5865f2; background: rgba(88, 101, 242, 0.2); color: #fff; }
+
+.screenShareModeOption {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 3px;
+    padding: 9px 12px;
+    text-align: left;
+}
+
+.screenShareModeOption small {
+    color: #949ba4;
+    font-size: 10px;
+    font-weight: 400;
+}
+
+.screenShareOptionActive small { color: #c9cdfb; }
+
+.screenShareSettingsActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 15px 22px;
+    border-top: 1px solid #3f4147;
+    background: #1e1f22;
+}
+
+.screenShareCancelButton {
+    min-height: 38px;
+    padding: 0 14px;
+    border: 0;
+    background: transparent;
+    color: #dbdee1;
+    cursor: pointer;
+}
+
+.streamQualityBadge { color: #dbdee1; font-size: 9px; white-space: nowrap; }
+
+.connectionQuality {
+    margin-left: 4px;
+    padding: 3px 6px;
+    border-radius: 999px;
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+.connectionGood { background: rgba(35, 165, 90, 0.2); color: #57f287; }
+.connectionMedium { background: rgba(240, 178, 50, 0.2); color: #f0b232; }
+.connectionPoor { background: rgba(237, 66, 69, 0.2); color: #fa7779; }
+
+.screenSharingToast::after {
+    content: attr(data-quality);
+    color: #b5bac1;
+    font-size: 10px;
+}
+
+.screenSharingToast::before {
+    content: attr(data-adaptive);
+    color: #f0b232;
+    font-size: 10px;
+}
+
 @media (max-width: 1150px) {
 
     .layout {
@@ -1735,6 +2078,29 @@
 
 @media (max-width: 700px) {
 
+    .shareAdminButton { opacity: 1; }
+
+    .screenShareSettingsBackdrop { padding: 10px; }
+
+    .screenShareSettingsModal {
+        max-height: calc(100dvh - 20px);
+        border-radius: 11px;
+    }
+
+    .screenShareSettingsHeader,
+    .screenShareSettingsBody,
+    .screenShareSettingsActions {
+        padding-right: 14px;
+        padding-left: 14px;
+    }
+
+    .screenSelectionMeta {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .screenSelectionMeta button { width: 100%; }
+
     .topbar {
         padding: 0 10px;
     }
@@ -1758,6 +2124,17 @@
 
     .leftSidebar {
         display: none;
+    }
+
+    .leftSidebar.mobileParticipantsOpen {
+        position: fixed;
+        z-index: 900;
+        top: 52px;
+        bottom: 58px;
+        left: 0;
+        width: min(290px, calc(100vw - 44px));
+        display: flex;
+        box-shadow: 12px 0 30px rgba(0, 0, 0, 0.45);
     }
 
     .layout {
@@ -1982,3 +2359,187 @@ input:focus-visible {
     color: #ffffff;
 }
 
+.editUsernameButton {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 6px;
+    color: #b5bac1;
+    background: transparent;
+    cursor: pointer;
+    font-size: 17px;
+}
+
+.editUsernameButton:hover,
+.editUsernameButton:focus-visible {
+    color: #f2f3f5;
+    background: #35373c;
+    outline: none;
+}
+
+.mobileEditUsernameButton {
+    display: block;
+    margin-top: 3px;
+    padding: 0;
+    border: 0;
+    color: #949cf7;
+    background: transparent;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.identityBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2200;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(7, 8, 10, 0.78);
+    backdrop-filter: blur(5px);
+}
+
+.identityModal {
+    width: min(440px, 100%);
+    padding: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    color: #f2f3f5;
+    background: #232428;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+    animation: screenShareModalIn 0.18s ease-out;
+}
+
+.identityAvatar {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 18px;
+    border-radius: 50%;
+    color: #fff;
+    background: #5865f2;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.identityHeader {
+    margin-bottom: 22px;
+    text-align: center;
+}
+
+.identityHeader h2 {
+    margin: 0 0 8px;
+    font-size: 23px;
+}
+
+.identityHeader p {
+    margin: 0;
+    color: #b5bac1;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.identityLabel {
+    display: block;
+    margin-bottom: 8px;
+    color: #dbdee1;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.identityInput {
+    box-sizing: border-box;
+    width: 100%;
+    height: 46px;
+    padding: 0 13px;
+    border: 1px solid #111214;
+    border-radius: 6px;
+    outline: none;
+    color: #f2f3f5;
+    background: #1e1f22;
+    font: inherit;
+}
+
+.identityInput:focus {
+    border-color: #5865f2;
+    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.22);
+}
+
+.identityInputError,
+.identityInputError:focus {
+    border-color: #da373c;
+}
+
+.identityHelp {
+    margin-top: 7px;
+    color: #949ba4;
+    font-size: 12px;
+}
+
+.identityError {
+    min-height: 18px;
+    margin-top: 4px;
+    color: #fa777c;
+    font-size: 12px;
+}
+
+.identityActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.identityCancelButton,
+.identityConfirmButton {
+    min-height: 40px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 5px;
+    color: #fff;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.identityCancelButton {
+    color: #dbdee1;
+    background: transparent;
+}
+
+.identityCancelButton:hover {
+    text-decoration: underline;
+}
+
+.identityConfirmButton {
+    background: #5865f2;
+}
+
+.identityConfirmButton:hover {
+    background: #4752c4;
+}
+
+@media (max-width: 600px) {
+    .identityBackdrop {
+        align-items: center;
+        padding: 14px;
+    }
+
+    .identityModal {
+        max-height: calc(100dvh - 28px);
+        padding: 22px 18px;
+        overflow-y: auto;
+    }
+
+    .identityActions {
+        flex-wrap: wrap-reverse;
+    }
+
+    .identityCancelButton,
+    .identityConfirmButton {
+        flex: 1 1 130px;
+    }
+}
