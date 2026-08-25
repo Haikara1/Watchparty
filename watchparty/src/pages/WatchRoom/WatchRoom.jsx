@@ -358,6 +358,7 @@ function WatchRoom() {
     );
 
     const shareFeedbackTimeoutRef = useRef(null);
+    const roomCodeCopyTimeoutRef = useRef(null);
 
     function getShareUrl() {
         return `${window.location.origin}/watch/${roomId}`;
@@ -373,6 +374,7 @@ function WatchRoom() {
 
         shareFeedbackTimeoutRef.current = setTimeout(() => {
             setCopyStatus("idle");
+            shareFeedbackTimeoutRef.current = null;
         }, 3000);
     }
 
@@ -433,6 +435,10 @@ function WatchRoom() {
                 clearTimeout(
                     shareFeedbackTimeoutRef.current
                 );
+            }
+
+            if (roomCodeCopyTimeoutRef.current) {
+                clearTimeout(roomCodeCopyTimeoutRef.current);
             }
 
         };
@@ -594,7 +600,14 @@ function WatchRoom() {
             setRoomCodeCopyStatus("error");
         }
 
-        window.setTimeout(() => setRoomCodeCopyStatus("idle"), 2500);
+        if (roomCodeCopyTimeoutRef.current) {
+            clearTimeout(roomCodeCopyTimeoutRef.current);
+        }
+
+        roomCodeCopyTimeoutRef.current = window.setTimeout(() => {
+            setRoomCodeCopyStatus("idle");
+            roomCodeCopyTimeoutRef.current = null;
+        }, 2500);
     }
 
     async function handleSaveUsername(event) {
@@ -634,6 +647,8 @@ function WatchRoom() {
     */
 
     const localScreenStreamRef = useRef(null);
+
+    const localScreenShareOwnerRef = useRef(null);
 
     const outgoingPeersRef = useRef(new Map());
 
@@ -780,6 +795,16 @@ function WatchRoom() {
         setActiveScreenShareId(userId);
     }
 
+    function handleLeaveRemoteScreenShare() {
+        console.log("[ScreenShare] LEAVE REMOTE solicitado", {
+            connectionId: userIdRef.current,
+            activeScreenShareId
+        });
+        setIsPlaying(false);
+        setConnectionQuality(null);
+        setActiveScreenShareId(null);
+    }
+
     const activeScreenShare =
         remoteScreenShares.find(
             share => share.userId === activeScreenShareId
@@ -796,6 +821,9 @@ function WatchRoom() {
 
     const [isScreenSharing, setIsScreenSharing] =
         useState(false);
+
+    // Este estado representa exclusivamente a captura local deste cliente.
+    const hasLocalScreenShare = isScreenSharing;
 
     const [screenShareError, setScreenShareError] =
         useState("");
@@ -2223,9 +2251,23 @@ function WatchRoom() {
     }
 
     async function handleForceStopScreenShare(targetId) {
-        if (!isRoomOwner) {
+        const isValidRemoteShare = remoteScreenSharesRef.current.some(
+            share => share.userId === targetId
+        );
+
+        if (
+            !isRoomOwner ||
+            !targetId ||
+            targetId === userIdRef.current ||
+            !isValidRemoteShare
+        ) {
             return;
         }
+
+        console.log("[ScreenShare] FORCE STOP solicitado", {
+            connectionId: userIdRef.current,
+            targetId
+        });
 
         await sendScreenShareAdminSignal("force-stop", targetId);
     }
@@ -2312,6 +2354,11 @@ function WatchRoom() {
         setScreenSelectionError("");
 
         try {
+            console.log("[ScreenShare][AUDIT] getDisplayMedia solicitado", {
+                connectionId: userIdRef.current,
+                reason: "user-click"
+            });
+
             const stream = await screenShareService.startScreenShare();
 
             if (screenSelectionRequestRef.current !== requestId) {
@@ -2332,9 +2379,10 @@ function WatchRoom() {
 
             videoTrack.onended = () => {
                 if (pendingScreenShareStreamRef.current === stream) {
-                    pendingScreenShareStreamRef.current = null;
-                    setPendingScreenShareStream(null);
-                    setPendingScreenShareSettings(null);
+                    clearPendingScreenShare();
+                    setScreenSelectionError(
+                        "A captura selecionada foi encerrada. Escolha uma tela novamente."
+                    );
                 }
             };
         } catch (error) {
@@ -2435,6 +2483,16 @@ function WatchRoom() {
                 }
             }
 
+            if (
+                pendingScreenShareStreamRef.current !== stream ||
+                videoTrack?.readyState !== "live"
+            ) {
+                throw new DOMException(
+                    "A captura foi encerrada antes da confirmação.",
+                    "AbortError"
+                );
+            }
+
             const actualSettings = {
                 ...(videoTrack?.getSettings?.() || {}),
                 selectedQuality: screenShareQuality,
@@ -2448,6 +2506,11 @@ function WatchRoom() {
 
             localScreenStreamRef.current =
                 stream;
+            localScreenShareOwnerRef.current = userIdRef.current;
+
+            console.log("[ScreenShare][AUDIT] localScreenStream definida", {
+                connectionId: userIdRef.current
+            });
 
             localScreenShareSettingsRef.current = actualSettings;
             localScreenShareQualityModeRef.current = screenShareQualityMode;
@@ -2506,6 +2569,7 @@ function WatchRoom() {
             );
 
             localScreenStreamRef.current = null;
+            localScreenShareOwnerRef.current = null;
 
             screenShareService.stopScreenShare(selectedStream);
             localScreenShareSettingsRef.current = null;
@@ -2535,14 +2599,24 @@ function WatchRoom() {
         const stream =
             localScreenStreamRef.current;
 
-        if (!stream) {
+        if (
+            !stream ||
+            localScreenShareOwnerRef.current !== userIdRef.current
+        ) {
             return;
         }
+
+        console.log("[ScreenShare] STOP LOCAL solicitado", {
+            connectionId: userIdRef.current,
+            activeScreenShareId,
+            hasLocalStream: true
+        });
 
         isStoppingScreenShareRef.current = true;
 
         try {
             localScreenStreamRef.current = null;
+            localScreenShareOwnerRef.current = null;
 
             localScreenShareSettingsRef.current = null;
             setLocalScreenShareSettings(null);
@@ -2640,6 +2714,11 @@ function WatchRoom() {
             screenShareService.onRemoteStream(
                 peerConnection,
                 stream => {
+
+                    console.log("[ScreenShare][AUDIT] remote stream recebida", {
+                        connectionId: userIdRef.current,
+                        senderId: remoteUserId
+                    });
 
                     addRemoteScreenShare(
                         remoteUserId,
@@ -3302,6 +3381,7 @@ function WatchRoom() {
                 });
                 screenShareService.stopScreenShare(localStream);
                 localScreenStreamRef.current = null;
+                localScreenShareOwnerRef.current = null;
             }
 
             closeAllScreenSharePeers();
@@ -3665,6 +3745,7 @@ function WatchRoom() {
 
                 localScreenStreamRef.current =
                     null;
+                localScreenShareOwnerRef.current = null;
             }
 
             closeAllScreenSharePeers();
@@ -4472,7 +4553,17 @@ function WatchRoom() {
                                                 : "⛶"}
                                         </button>
 
-                                        {isScreenSharing && (
+                                        <button
+                                            type="button"
+                                            className={styles.playerButton}
+                                            onClick={handleLeaveRemoteScreenShare}
+                                            aria-label="Sair da transmissão"
+                                            title="Sair da transmissão"
+                                        >
+                                            ✕
+                                        </button>
+
+                                        {hasLocalScreenShare && (
                                             <button
                                                 type="button"
                                                 className={
@@ -4484,7 +4575,7 @@ function WatchRoom() {
                                             >
                                                 ■
                                                 <span>
-                                                    Parar transmissão
+                                                    Parar meu compartilhamento
                                                 </span>
                                             </button>
                                         )}
@@ -4533,7 +4624,7 @@ function WatchRoom() {
                                     junto com você.
                                 </p>
 
-                                {isScreenSharing ? (
+                                {hasLocalScreenShare ? (
 
                                     <button
                                         type="button"
@@ -4545,7 +4636,7 @@ function WatchRoom() {
                                         }
                                     >
                                         <span>■</span>
-                                        Parar compartilhamento
+                                        Parar meu compartilhamento
                                     </button>
 
                                 ) : (
@@ -4660,35 +4751,35 @@ function WatchRoom() {
                             <button
                                 type="button"
                                 className={`${styles.bottomMainControl} ${
-                                    isScreenSharing
+                                    hasLocalScreenShare
                                         ? styles.bottomMainControlActive
                                         : ""
                                 }`}
                                 onClick={
-                                    isScreenSharing
+                                    hasLocalScreenShare
                                         ? handleStopScreenShare
                                         : handleStartScreenShare
                                 }
                                 disabled={
-                                    !isScreenSharing &&
+                                    !hasLocalScreenShare &&
                                     Boolean(screenShareUnavailableReason)
                                 }
                                 title={
-                                    !isScreenSharing
+                                    !hasLocalScreenShare
                                         ? screenShareUnavailableReason
                                         : ""
                                 }
                             >
 
                                 <span>
-                                    {isScreenSharing
+                                    {hasLocalScreenShare
                                         ? "■"
                                         : "🖥"}
                                 </span>
 
                                 <span>
-                                    {isScreenSharing
-                                        ? "Parar transmissão"
+                                    {hasLocalScreenShare
+                                        ? "Parar meu compartilhamento"
                                         : "Compartilhar tela"}
                                 </span>
 
@@ -5320,7 +5411,7 @@ function WatchRoom() {
                 STATUS LOCAL
             ================================================== */}
 
-            {isScreenSharing && (
+            {hasLocalScreenShare && (
                 <div
                     className={styles.screenSharingToast}
                     data-quality={`${formatStreamQuality(localScreenShareSettings)} • ${
@@ -5347,7 +5438,7 @@ function WatchRoom() {
                             handleStopScreenShare
                         }
                     >
-                        Parar
+                        Parar meu compartilhamento
                     </button>
 
                 </div>

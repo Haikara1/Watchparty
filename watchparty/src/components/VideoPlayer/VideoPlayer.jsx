@@ -1011,6 +1011,8 @@ function VideoPlayer({
             null;
 
 
+        // Estado derivado da troca explícita da fonte de mídia.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setHasError(false);
 
         setAutoplayBlocked(false);
@@ -1094,6 +1096,8 @@ function VideoPlayer({
                         remoteTime;
 
 
+                    // Espelha no HUD o seek aplicado ao elemento de vídeo.
+                    // eslint-disable-next-line react-hooks/set-state-in-effect
                     setCurrentTime(
                         remoteTime
                     );
@@ -1497,6 +1501,7 @@ function VideoPlayer({
             );
 
 
+            // Player pausado deve manter os controles visíveis.
             setShowControls(true);
 
         }
@@ -1536,6 +1541,7 @@ function VideoPlayer({
 
             clearControlsTimeout();
 
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setShowControls(true);
 
         }

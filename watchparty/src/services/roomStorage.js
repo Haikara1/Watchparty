@@ -425,7 +425,7 @@ export async function getRoomById(roomId) {
 
         return room;
 
-    } catch (error) {
+    } catch {
 
         /*
         ====================================================

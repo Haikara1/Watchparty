@@ -39,8 +39,15 @@ Habilite Auth anônimo no Supabase. Nunca use `service_role` no frontend.
 npm run build
 ```
 
-O `vercel.json` mantém rotas SPA como `/watch/:roomId` em acessos diretos.
+## Deploy na Vercel
+
+Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY` no ambiente do projeto e publique o diretório desta aplicação. O `vercel.json` mantém rotas SPA como `/watch/:roomId` funcionando em acessos diretos e após refresh.
 
 ## Limitações da versão 1.0
 
-Presence e o limite de participantes são best effort no cliente, sujeitos a uma corrida em entradas simultâneas. O chat é efêmero. A malha WebRTC depende da conectividade dos navegadores e dos servidores ICE configurados; não há SFU ou TURN próprio.
+- Brave ↔ Brave na mesma máquina ainda precisa ser validado usando máquinas separadas.
+- O chat é efêmero.
+- Não há TURN próprio; redes restritivas podem impedir a conexão P2P.
+- A topologia WebRTC é mesh e não é destinada a salas grandes.
+- Presence e o limite de participantes são best effort e sujeitos a corrida em entradas simultâneas.
+- Moderação, force-stop e limites de compartilhamento são controles client-side via Realtime, não autorização server-side contra clientes adulterados.

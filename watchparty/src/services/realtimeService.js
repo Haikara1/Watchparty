@@ -31,24 +31,6 @@ export const supabase =
     );
 
 
-console.log(
-    "[Supabase] URL:",
-    supabaseUrl
-);
-
-
-console.log(
-    "[Supabase] Key existe:",
-    !!supabaseKey
-);
-
-
-console.log(
-    "[Supabase] URL válida:",
-    supabaseUrl?.startsWith("https://")
-);
-
-
 /*
 ============================================================
 CONFIGURAÇÕES DO REALTIME

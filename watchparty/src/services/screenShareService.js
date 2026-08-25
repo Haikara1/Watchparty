@@ -543,10 +543,6 @@ const screenShareService = {
             );
 
 
-            console.log(
-                "[ScreenShare] ICE Candidate adicionado."
-            );
-
         } catch (error) {
 
             console.error(
@@ -590,11 +586,6 @@ const screenShareService = {
                     return;
 
                 }
-
-
-                console.log(
-                    "[ScreenShare] Novo ICE Candidate."
-                );
 
 
                 callback(
@@ -909,12 +900,6 @@ const screenShareService = {
         }
 
 
-        console.log(
-            "[ScreenShare] Enviando sinal:",
-            signal.type
-        );
-
-
         try {
 
             const result =
@@ -930,12 +915,6 @@ const screenShareService = {
                         signal
 
                 });
-
-
-            console.log(
-                "[ScreenShare] Sinal enviado:",
-                result
-            );
 
 
             return result;
@@ -981,11 +960,6 @@ const screenShareService = {
         }
 
 
-        console.log(
-            "[ScreenShare] Registrando listener de sinalização."
-        );
-
-
         const listener =
             channel.on(
 
@@ -998,12 +972,6 @@ const screenShareService = {
                 },
 
                 payload => {
-
-                    console.log(
-                        "[ScreenShare] Sinal recebido:",
-                        payload
-                    );
-
 
                     const signal =
                         payload?.payload;
