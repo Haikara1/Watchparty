@@ -1,16 +1,46 @@
-# React + Vite
+# WatchParty
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+WatchParty é uma sala colaborativa em tempo real para conversar e acompanhar até três compartilhamentos de tela simultâneos no navegador.
 
-Currently, two official plugins are available:
+## Funcionalidades
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Criação e entrada em salas
+- Auth anônimo e identidade visual persistente
+- Supabase Realtime, Presence e chat efêmero
+- WebRTC com múltiplos compartilhamentos, recovery e qualidade adaptativa
+- Controles de host e interface responsiva
 
-## React Compiler
+## Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React
+- Vite
+- Supabase
+- WebRTC
 
-## Expanding the ESLint configuration
+## Como executar
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm install
+npm run dev
+```
+
+Crie `.env.local` (não versionado) com chaves públicas:
+
+```env
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_KEY=sua-chave-publica-ou-anon
+```
+
+Habilite Auth anônimo no Supabase. Nunca use `service_role` no frontend.
+
+## Build
+
+```bash
+npm run build
+```
+
+O `vercel.json` mantém rotas SPA como `/watch/:roomId` em acessos diretos.
+
+## Limitações da versão 1.0
+
+Presence e o limite de participantes são best effort no cliente, sujeitos a uma corrida em entradas simultâneas. O chat é efêmero. A malha WebRTC depende da conectividade dos navegadores e dos servidores ICE configurados; não há SFU ou TURN próprio.

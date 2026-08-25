@@ -318,6 +318,7 @@ function WatchRoom() {
     const isConnectingRef = useRef(false);
 
     const isRetrackingPresenceRef = useRef(false);
+    const hasTrackedPresenceRef = useRef(false);
 
     /*
     ============================================================
@@ -342,6 +343,13 @@ function WatchRoom() {
     */
 
     const [copyStatus, setCopyStatus] = useState("idle");
+
+    const [showRoomInfo, setShowRoomInfo] = useState(false);
+    const [roomCodeCopyStatus, setRoomCodeCopyStatus] = useState("idle");
+    const [connectionStatus, setConnectionStatus] = useState(
+        () => navigator.onLine ? "connecting" : "offline"
+    );
+    const [roomFull, setRoomFull] = useState(false);
 
     const [canNativeShare] = useState(
         () =>
@@ -440,6 +448,11 @@ function WatchRoom() {
     const [messages, setMessages] = useState([]);
 
     const [chatMessage, setChatMessage] = useState("");
+    const [chatError, setChatError] = useState("");
+    const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+    const chatMessagesRef = useRef(null);
+    const shouldAutoScrollChatRef = useRef(true);
+    const lastMessageSentAtRef = useRef(0);
 
     /*
     ============================================================
@@ -504,6 +517,43 @@ function WatchRoom() {
     }, [username]);
 
     useEffect(() => {
+        function handleOnline() {
+            setConnectionStatus(
+                realtimeService.isChannelReady(channelRef.current)
+                    ? "connected"
+                    : "reconnecting"
+            );
+        }
+
+        function handleOffline() {
+            setConnectionStatus("offline");
+        }
+
+        window.addEventListener("online", handleOnline);
+        window.addEventListener("offline", handleOffline);
+
+        return () => {
+            window.removeEventListener("online", handleOnline);
+            window.removeEventListener("offline", handleOffline);
+        };
+    }, []);
+
+    useEffect(() => {
+        const container = chatMessagesRef.current;
+
+        if (!container || messages.length === 0) {
+            return;
+        }
+
+        if (shouldAutoScrollChatRef.current) {
+            container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+            setHasUnreadMessages(false);
+        } else {
+            setHasUnreadMessages(true);
+        }
+    }, [messages]);
+
+    useEffect(() => {
         if (!showIdentityModal) {
             return;
         }
@@ -533,6 +583,18 @@ function WatchRoom() {
         setIsEditingUsername(true);
         setShowIdentityModal(true);
         setOpenParticipantMenuId(null);
+    }
+
+    async function handleCopyRoomCode() {
+        try {
+            await navigator.clipboard.writeText(roomId);
+            setRoomCodeCopyStatus("success");
+        } catch (error) {
+            console.error("[Sala] Erro ao copiar código:", error);
+            setRoomCodeCopyStatus("error");
+        }
+
+        window.setTimeout(() => setRoomCodeCopyStatus("idle"), 2500);
     }
 
     async function handleSaveUsername(event) {
@@ -3185,6 +3247,21 @@ function WatchRoom() {
     }, []);
 
     useEffect(() => {
+        if (!showRoomInfo) {
+            return;
+        }
+
+        function handleRoomInfoKeyDown(event) {
+            if (event.key === "Escape") {
+                setShowRoomInfo(false);
+            }
+        }
+
+        document.addEventListener("keydown", handleRoomInfoKeyDown);
+        return () => document.removeEventListener("keydown", handleRoomInfoKeyDown);
+    }, [showRoomInfo]);
+
+    useEffect(() => {
 
         if (!showScreenShareSettings) {
             return;
@@ -3278,6 +3355,7 @@ function WatchRoom() {
             remoteStreamSettingsRef.current;
 
         isConnectingRef.current = true;
+        setConnectionStatus(navigator.onLine ? "connecting" : "offline");
 
         const channel =
             realtimeService.createRoomChannel(
@@ -3285,6 +3363,15 @@ function WatchRoom() {
             );
 
         channelRef.current = channel;
+
+        const removeConnectionStatusListener = realtimeService.onConnectionStatus(
+            channel,
+            status => {
+                if (isActive && navigator.onLine) {
+                    setConnectionStatus(status);
+                }
+            }
+        );
 
         /*
         CHAT
@@ -3398,6 +3485,7 @@ function WatchRoom() {
 
                 if (
                     !hasCurrentUser &&
+                    hasTrackedPresenceRef.current &&
                     !isRetrackingPresenceRef.current &&
                     realtimeService.isChannelReady(channel)
                 ) {
@@ -3495,10 +3583,31 @@ function WatchRoom() {
 
                 try {
 
+                    const existingPresence = Object.values(
+                        channel.presenceState?.() || {}
+                    ).flat().filter(Boolean);
+                    const alreadyPresent = existingPresence.some(
+                        participant => participant.userId === userIdRef.current
+                    );
+
+                    if (
+                        !alreadyPresent &&
+                        Number(room.maxUsers) > 0 &&
+                        existingPresence.length >= Number(room.maxUsers)
+                    ) {
+                        setRoomFull(true);
+                        setConnectionStatus("connected");
+                        return;
+                    }
+
                     await realtimeService.trackPresence(
                         channel,
                         currentUser
                     );
+
+                    hasTrackedPresenceRef.current = true;
+                    setRoomFull(false);
+                    setConnectionStatus("connected");
 
                 } catch (error) {
 
@@ -3519,6 +3628,7 @@ function WatchRoom() {
                     "[Realtime] Erro ao conectar:",
                     error
                 );
+                setConnectionStatus(navigator.onLine ? "error" : "offline");
 
             })
             .finally(() => {
@@ -3541,6 +3651,9 @@ function WatchRoom() {
                 false;
 
             isRetrackingPresenceRef.current = false;
+            hasTrackedPresenceRef.current = false;
+
+            removeConnectionStatusListener();
 
             if (
                 localScreenStreamRef.current
@@ -3573,6 +3686,7 @@ function WatchRoom() {
             localScreenShareSettingsRef.current = null;
 
             setParticipants([]);
+            setConnectionStatus(navigator.onLine ? "reconnecting" : "offline");
 
             if (
                 channelRef.current ===
@@ -3606,10 +3720,22 @@ function WatchRoom() {
             return;
         }
 
+        if (text.length > 500) {
+            setChatError("A mensagem pode ter no máximo 500 caracteres.");
+            return;
+        }
+
+        const now = Date.now();
+        if (now - lastMessageSentAtRef.current < 400) {
+            setChatError("Aguarde um instante antes de enviar outra mensagem.");
+            return;
+        }
+
         const activeChannel =
             channelRef.current;
 
         if (!activeChannel) {
+            setChatError("Não foi possível enviar: sala desconectada.");
             return;
         }
 
@@ -3629,10 +3755,14 @@ function WatchRoom() {
 
         try {
 
-            await realtimeService.sendChatMessage(
+            const result = await realtimeService.sendChatMessage(
                 activeChannel,
                 message
             );
+
+            if (result !== "ok") {
+                throw new Error("O Realtime não confirmou o envio.");
+            }
 
             setMessages(previous => {
 
@@ -3654,6 +3784,9 @@ function WatchRoom() {
             });
 
             setChatMessage("");
+            setChatError("");
+            lastMessageSentAtRef.current = Date.now();
+            shouldAutoScrollChatRef.current = true;
 
         } catch (error) {
 
@@ -3661,6 +3794,7 @@ function WatchRoom() {
                 "[Realtime] Erro ao enviar chat:",
                 error
             );
+            setChatError("Não foi possível enviar a mensagem. Tente novamente.");
         }
     }
 
@@ -3671,6 +3805,30 @@ function WatchRoom() {
     */
 
     function handleGoHome() {
+        navigate("/");
+    }
+
+    async function handleLeaveRoom() {
+        screenSelectionRequestRef.current += 1;
+
+        if (pendingScreenShareStreamRef.current) {
+            screenShareService.stopScreenShare(pendingScreenShareStreamRef.current);
+            pendingScreenShareStreamRef.current = null;
+            setPendingScreenShareStream(null);
+        }
+
+        if (localScreenStreamRef.current) {
+            await handleStopScreenShare();
+        }
+
+        closeAllScreenSharePeers();
+
+        const activeChannel = channelRef.current;
+        channelRef.current = null;
+        if (activeChannel) {
+            await realtimeService.disconnect(activeChannel);
+        }
+
         navigate("/");
     }
 
@@ -3732,6 +3890,21 @@ function WatchRoom() {
     ============================================================
     */
 
+    if (roomFull) {
+        return (
+            <main className={styles.page}>
+                <div className={styles.notFound} role="status">
+                    <div className={styles.notFoundIcon}>👥</div>
+                    <h1>Sala cheia</h1>
+                    <p>Esta sala atingiu o limite de participantes. Tente novamente mais tarde.</p>
+                    <button type="button" className={styles.primaryButton} onClick={handleGoHome}>
+                        Voltar para o início
+                    </button>
+                </div>
+            </main>
+        );
+    }
+
     const currentUser =
         participants.find(
             participant =>
@@ -3741,6 +3914,17 @@ function WatchRoom() {
 
     const participantCount =
         participants.length;
+
+    const hostName = participants.find(participant => participant.isHost)?.username ||
+        (isRoomOwner ? username : "Host ausente");
+
+    const connectionLabels = {
+        connecting: "Conectando...",
+        connected: "Conectado",
+        reconnecting: "Reconectando...",
+        offline: "Você está offline.",
+        error: "Erro de conexão"
+    };
 
     return (
         <main className={styles.page}>
@@ -3783,9 +3967,9 @@ function WatchRoom() {
 
                 <div className={styles.topbarCenter}>
 
-                    <div className={styles.connectionStatus}>
-                        <span className={styles.connectionDot} />
-                        Conectado
+                    <div className={styles.connectionStatus} role="status" aria-live="polite">
+                        <span className={`${styles.connectionDot} ${styles[`connectionDot_${connectionStatus}`] || ""}`} />
+                        {connectionLabels[connectionStatus]}
                     </div>
 
                     <div className={styles.memberCount}>
@@ -3841,8 +4025,19 @@ function WatchRoom() {
                         type="button"
                         className={styles.iconButton}
                         aria-label="Configurações"
+                        onClick={() => setShowRoomInfo(true)}
                     >
                         ⚙
+                    </button>
+
+                    <button
+                        type="button"
+                        className={`${styles.topbarButton} ${styles.leaveButton}`}
+                        onClick={() => void handleLeaveRoom()}
+                        aria-label="Sair da sala"
+                    >
+                        <span className={styles.buttonIcon}>↪</span>
+                        <span className={styles.desktopOnly}>Sair</span>
                     </button>
 
                 </div>
@@ -4671,9 +4866,19 @@ function WatchRoom() {
                         <>
 
                             <div
+                                ref={chatMessagesRef}
                                 className={
                                     styles.chatMessages
                                 }
+                                onScroll={event => {
+                                    const element = event.currentTarget;
+                                    const distanceFromBottom =
+                                        element.scrollHeight - element.scrollTop - element.clientHeight;
+                                    shouldAutoScrollChatRef.current = distanceFromBottom < 72;
+                                    if (distanceFromBottom < 72) {
+                                        setHasUnreadMessages(false);
+                                    }
+                                }}
                             >
 
                                 {messages.length === 0 ? (
@@ -4781,6 +4986,27 @@ function WatchRoom() {
 
                             </div>
 
+                            {hasUnreadMessages && (
+                                <button
+                                    type="button"
+                                    className={styles.newMessagesButton}
+                                    onClick={() => {
+                                        shouldAutoScrollChatRef.current = true;
+                                        chatMessagesRef.current?.scrollTo({
+                                            top: chatMessagesRef.current.scrollHeight,
+                                            behavior: "smooth"
+                                        });
+                                        setHasUnreadMessages(false);
+                                    }}
+                                >
+                                    Novas mensagens ↓
+                                </button>
+                            )}
+
+                            <div className={styles.chatError} role="status" aria-live="polite">
+                                {chatError}
+                            </div>
+
                             <form
                                 className={
                                     styles.chatForm
@@ -4823,6 +5049,50 @@ function WatchRoom() {
                 </aside>
 
             </div>
+
+            {showRoomInfo && (
+                <div
+                    className={styles.roomInfoBackdrop}
+                    onMouseDown={event => {
+                        if (event.target === event.currentTarget) {
+                            setShowRoomInfo(false);
+                        }
+                    }}
+                >
+                    <section
+                        className={styles.roomInfoModal}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="room-info-title"
+                    >
+                        <header className={styles.roomInfoHeader}>
+                            <div>
+                                <h2 id="room-info-title">Informações da sala</h2>
+                                <p>{room.name}</p>
+                            </div>
+                            <button type="button" onClick={() => setShowRoomInfo(false)} aria-label="Fechar">×</button>
+                        </header>
+                        <dl className={styles.roomInfoList}>
+                            <div><dt>Tipo</dt><dd>{room.type || "Não informado"}</dd></div>
+                            <div><dt>Participantes</dt><dd>{participantCount} de {room.maxUsers}</dd></div>
+                            <div><dt>Host</dt><dd>{hostName}</dd></div>
+                            <div><dt>Código</dt><dd title={roomId}>{roomId}</dd></div>
+                            <div><dt>Link</dt><dd title={getShareUrl()}>{getShareUrl()}</dd></div>
+                        </dl>
+                        <div className={styles.roomInfoActions}>
+                            <button type="button" onClick={() => void handleCopyRoomCode()}>
+                                {roomCodeCopyStatus === "success" ? "Código copiado" : "Copiar código"}
+                            </button>
+                            <button type="button" onClick={() => void handleCopyRoomLink()}>
+                                {copyStatus === "success" ? "Link copiado" : "Copiar link"}
+                            </button>
+                            <button type="button" className={styles.roomInfoLeave} onClick={() => void handleLeaveRoom()}>
+                                Sair da sala
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
 
             {(sharePermissionNotice ||
                 (!isScreenSharing && screenShareUnavailableReason)) && (

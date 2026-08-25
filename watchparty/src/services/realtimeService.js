@@ -111,8 +111,9 @@ function getChannelController(channel) {
             reconnectTimer: null,
 
             reconnectAttempts: 0,
+            connectPromise: null,
 
-            connectPromise: null
+            statusListeners: new Set()
 
         };
 
@@ -127,6 +128,16 @@ function getChannelController(channel) {
 
     return controller;
 
+}
+
+function notifyConnectionStatus(controller, status) {
+    controller?.statusListeners?.forEach(listener => {
+        try {
+            listener(status);
+        } catch (error) {
+            console.warn("[Realtime] Listener de status falhou:", error);
+        }
+    });
 }
 
 
@@ -498,6 +509,8 @@ function subscribeChannel(
                                 "SUBSCRIBED"
                             ) {
 
+                                notifyConnectionStatus(controller, "connected");
+
                                 finishSuccess();
 
                                 return;
@@ -515,6 +528,8 @@ function subscribeChannel(
                                 status ===
                                 "CHANNEL_ERROR"
                             ) {
+
+                                notifyConnectionStatus(controller, "reconnecting");
 
                                 controller.isConnected =
                                     false;
@@ -553,6 +568,8 @@ function subscribeChannel(
                                 "TIMED_OUT"
                             ) {
 
+                                notifyConnectionStatus(controller, "reconnecting");
+
                                 controller.isConnected =
                                     false;
 
@@ -589,6 +606,8 @@ function subscribeChannel(
                                 status ===
                                 "CLOSED"
                             ) {
+
+                                notifyConnectionStatus(controller, "reconnecting");
 
                                 controller.isConnected =
                                     false;
@@ -948,6 +967,16 @@ const realtimeService = {
             channel.state === "joined"
         );
 
+    },
+
+    onConnectionStatus(channel, callback) {
+        const controller = getChannelController(channel);
+        if (!controller || typeof callback !== "function") {
+            return () => {};
+        }
+
+        controller.statusListeners.add(callback);
+        return () => controller.statusListeners.delete(callback);
     },
 
 
