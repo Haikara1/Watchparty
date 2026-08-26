@@ -152,7 +152,8 @@ function ScreenSharePreview({
     onSelect,
     isHostShare = false,
     canForceStop = false,
-    onForceStop
+    onForceStop,
+    selectionCard = false
 }) {
 
     const videoRef = useRef(null);
@@ -190,6 +191,8 @@ function ScreenSharePreview({
         <div
             className={`${styles.screenPreview} ${
                 isActive ? styles.screenPreviewActive : ""
+            } ${
+                selectionCard ? styles.shareSelectionCard : ""
             }`}
             onClick={() => onSelect(share.userId)}
             onKeyDown={event => {
@@ -226,7 +229,29 @@ function ScreenSharePreview({
                         {formatStreamQuality(share.streamSettings)}
                     </span>
                 )}
+                {selectionCard && share.streamSettings?.qualityMode && (
+                    <span className={styles.streamQualityBadge}>
+                        {share.streamSettings.qualityMode === "fixed"
+                            ? "Fixo"
+                            : "Automático"}
+                    </span>
+                )}
             </span>
+
+            {selectionCard && (
+                <span className={styles.shareSelectionAction}>
+                    <button
+                        type="button"
+                        onClick={event => {
+                            event.stopPropagation();
+                            onSelect(share.userId);
+                        }}
+                        aria-label={`Entrar na transmissão de ${share.username}`}
+                    >
+                        Entrar na transmissão
+                    </button>
+                </span>
+            )}
 
             {canForceStop && (
                 <button
@@ -875,6 +900,11 @@ function WatchRoom() {
 
     const [connectionQuality, setConnectionQuality] = useState(null);
 
+    const [localScreenSnapshot, setLocalScreenSnapshot] = useState(null);
+
+    const localScreenSnapshotUrlRef = useRef(null);
+    const localScreenSnapshotRequestRef = useRef(0);
+
     /*
     ============================================================
     PLAYER
@@ -986,6 +1016,125 @@ function WatchRoom() {
         video.srcObject = null;
 
     }, [remoteScreenStream]);
+
+    function clearLocalScreenSnapshot() {
+        localScreenSnapshotRequestRef.current += 1;
+
+        if (localScreenSnapshotUrlRef.current) {
+            URL.revokeObjectURL(localScreenSnapshotUrlRef.current);
+            localScreenSnapshotUrlRef.current = null;
+        }
+
+        setLocalScreenSnapshot(null);
+    }
+
+    async function captureLocalScreenSnapshot(stream) {
+        const requestId = localScreenSnapshotRequestRef.current + 1;
+        localScreenSnapshotRequestRef.current = requestId;
+
+        if (localScreenSnapshotUrlRef.current) {
+            URL.revokeObjectURL(localScreenSnapshotUrlRef.current);
+            localScreenSnapshotUrlRef.current = null;
+        }
+
+        setLocalScreenSnapshot(null);
+
+        const videoTrack = stream?.getVideoTracks?.()[0];
+
+        if (!videoTrack || videoTrack.readyState !== "live") {
+            return;
+        }
+
+        const video = document.createElement("video");
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+
+        try {
+            await video.play();
+
+            if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+                await new Promise((resolve, reject) => {
+                    const finish = callback => {
+                        clearTimeout(timeoutId);
+                        video.removeEventListener("loadeddata", handleLoadedData);
+                        video.removeEventListener("error", handleError);
+                        callback();
+                    };
+                    const handleLoadedData = () => finish(resolve);
+                    const handleError = () => finish(() => {
+                        reject(new Error("Falha ao carregar o frame local."));
+                    });
+                    const timeoutId = setTimeout(() => finish(() => {
+                        reject(new Error("Tempo esgotado ao capturar o frame local."));
+                    }), 3000);
+
+                    video.addEventListener("loadeddata", handleLoadedData, { once: true });
+                    video.addEventListener("error", handleError, { once: true });
+                });
+            }
+
+            if (!video.videoWidth || !video.videoHeight) {
+                throw new Error("Frame local sem dimensões válidas.");
+            }
+
+            const mobileSnapshot = window.matchMedia("(max-width: 700px)").matches;
+            const maximumWidth = mobileSnapshot ? 720 : 1280;
+            const maximumHeight = mobileSnapshot ? 405 : 720;
+            const scale = Math.min(
+                1,
+                maximumWidth / video.videoWidth,
+                maximumHeight / video.videoHeight
+            );
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+            canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+
+            const context = canvas.getContext("2d");
+
+            if (!context) {
+                throw new Error("Canvas indisponível para o snapshot local.");
+            }
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, "image/jpeg", 0.72);
+            });
+
+            if (!blob) {
+                throw new Error("Não foi possível gerar o snapshot local.");
+            }
+
+            const snapshotUrl = URL.createObjectURL(blob);
+
+            if (localScreenSnapshotRequestRef.current !== requestId) {
+                URL.revokeObjectURL(snapshotUrl);
+                return;
+            }
+
+            localScreenSnapshotUrlRef.current = snapshotUrl;
+            setLocalScreenSnapshot(snapshotUrl);
+        } catch {
+            if (localScreenSnapshotRequestRef.current === requestId) {
+                setLocalScreenSnapshot(null);
+            }
+        } finally {
+            video.pause();
+            video.srcObject = null;
+        }
+    }
+
+    useEffect(() => {
+        return () => {
+            localScreenSnapshotRequestRef.current += 1;
+
+            if (localScreenSnapshotUrlRef.current) {
+                URL.revokeObjectURL(localScreenSnapshotUrlRef.current);
+                localScreenSnapshotUrlRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
 
@@ -2561,6 +2710,8 @@ function WatchRoom() {
 
             setIsScreenSharing(true);
 
+            void captureLocalScreenSnapshot(stream);
+
             if (videoTrack) {
 
                 videoTrack.onended =
@@ -2611,6 +2762,8 @@ function WatchRoom() {
                     : "Não foi possível iniciar o compartilhamento de tela."
             );
 
+            clearLocalScreenSnapshot();
+
             localScreenStreamRef.current = null;
             localScreenShareOwnerRef.current = null;
 
@@ -2658,6 +2811,8 @@ function WatchRoom() {
         isStoppingScreenShareRef.current = true;
 
         try {
+            clearLocalScreenSnapshot();
+
             localScreenStreamRef.current = null;
             localScreenShareOwnerRef.current = null;
 
@@ -3793,6 +3948,8 @@ function WatchRoom() {
 
             closeAllScreenSharePeers();
 
+            clearLocalScreenSnapshot();
+
             setIsScreenSharing(false);
 
             setRemoteScreenShares([]);
@@ -3953,7 +4110,7 @@ function WatchRoom() {
             await realtimeService.disconnect(activeChannel);
         }
 
-        navigate("/");
+        navigate("/salas");
     }
 
     /*
@@ -4614,6 +4771,99 @@ function WatchRoom() {
 
                             </>
 
+                        ) : remoteScreenShares.length > 0 ? (
+
+                            <div
+                                className={styles.shareSelectionGrid}
+                                data-count={
+                                    remoteScreenShares.length +
+                                    (hasLocalScreenShare ? 1 : 0)
+                                }
+                            >
+                                {hasLocalScreenShare && (
+                                    <div
+                                        className={`${styles.screenPreview} ${styles.shareSelectionCard} ${styles.localShareSelectionCard}`}
+                                    >
+                                        {localScreenSnapshot && (
+                                            <img
+                                                src={localScreenSnapshot}
+                                                className={styles.localSharePreviewImage}
+                                                alt=""
+                                            />
+                                        )}
+
+                                        <span className={styles.localShareCardShade} />
+
+                                        <span className={styles.screenPreviewOverlay}>
+                                            <span className={styles.screenPreviewUsername}>
+                                                {username}
+                                            </span>
+                                            <span className={styles.youBadge}>Você</span>
+                                            <span className={styles.screenPreviewLive}>LIVE</span>
+                                            {isRoomOwner && (
+                                                <span className={styles.screenShareHostBadge}>HOST</span>
+                                            )}
+                                            {localScreenShareSettings && (
+                                                <span className={styles.streamQualityBadge}>
+                                                    {formatStreamQuality(localScreenShareSettings)}
+                                                </span>
+                                            )}
+                                            <span className={styles.streamQualityBadge}>
+                                                {localScreenShareSettings?.qualityMode === "fixed"
+                                                    ? "Fixo"
+                                                    : "Automático"}
+                                            </span>
+                                        </span>
+
+                                        <span className={styles.localShareSelectionStatus}>
+                                            Sua transmissão
+                                        </span>
+                                    </div>
+                                )}
+
+                                {remoteScreenShares.map(share => (
+                                    <ScreenSharePreview
+                                        key={share.userId}
+                                        share={share}
+                                        isActive={false}
+                                        onSelect={selectScreenShare}
+                                        isHostShare={participants.some(
+                                            participant =>
+                                                participant.userId === share.userId &&
+                                                participant.isHost
+                                        )}
+                                        selectionCard
+                                    />
+                                ))}
+                            </div>
+
+                        ) : hasLocalScreenShare ? (
+
+                            <div className={styles.localSharePreview}>
+                                {localScreenSnapshot && (
+                                    <img
+                                        src={localScreenSnapshot}
+                                        className={styles.localSharePreviewImage}
+                                        alt=""
+                                    />
+                                )}
+
+                                <div className={styles.localSharePreviewShade} />
+
+                                <div className={styles.localSharePreviewContent}>
+                                    <span className={styles.localShareLiveBadge}>
+                                        <span />
+                                        AO VIVO
+                                    </span>
+
+                                    <h1>Sua transmissão está ativa</h1>
+
+                                    <p>
+                                        Todos na sala podem assistir à sua tela.
+                                    </p>
+                                </div>
+                            </div>
+
                         ) : (
 
                             <div
@@ -4685,7 +4935,7 @@ function WatchRoom() {
 
                     </div>
 
-                    {remoteScreenShares.length > 0 && (
+                    {remoteScreenShares.length > 0 && activeScreenShareId !== null && (
                         <div
                             className={`${styles.screenPreviews} ${
                                 activeScreenShareId === null

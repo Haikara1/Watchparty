@@ -1,7 +1,10 @@
 import styles from "./Hero.module.css";
 import CreateRoom from "../CreateRoom/CreateRoom";
+import { useNavigate } from "react-router-dom";
 
 function Hero() {
+    const navigate = useNavigate();
+
     return (
         <section className={styles.hero}>
 
@@ -47,6 +50,7 @@ function Hero() {
 
                     <button
                         className={`${styles.hero__button} ${styles["hero__button--secondary"]}`}
+                        onClick={() => navigate("/salas")}
                     >
                         Entrar em uma sala
                     </button>
