@@ -795,6 +795,31 @@
     min-width: 0;
 }
 
+.shareSelectionSnapshot {
+    position: absolute;
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    display: block;
+
+    object-fit: cover;
+}
+
+.shareSelectionFallback {
+    position: absolute;
+    inset: 0;
+
+    display: grid;
+    place-items: center;
+
+    background: #111214;
+
+    color: #949ba4;
+    font-size: 34px;
+}
+
 .shareSelectionCard:hover {
     border-color: #5865f2;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.38);
@@ -1925,13 +1950,24 @@
 
     margin: auto;
 
-    padding: 40px;
+    padding: clamp(30px, 7vw, 52px);
 
     text-align: center;
 
-    border-radius: 8px;
+    border: 1px solid rgba(139, 92, 246, 0.24);
+    border-radius: 20px;
 
-    background: #1e1f22;
+    background:
+        radial-gradient(
+            circle at top,
+            rgba(124, 58, 237, 0.16),
+            transparent 46%
+        ),
+        #17171f;
+
+    box-shadow:
+        0 24px 70px rgba(0, 0, 0, 0.42),
+        0 0 48px rgba(124, 58, 237, 0.08);
 }
 
 .notFoundIcon {
@@ -1945,7 +1981,8 @@
 
     color: #f2f3f5;
 
-    font-size: 22px;
+    font-size: clamp(22px, 5vw, 30px);
+    line-height: 1.25;
 }
 
 .notFound p {
@@ -1955,7 +1992,131 @@
 
     line-height: 1.5;
 
-    font-size: 13px;
+    font-size: 14px;
+}
+
+
+.notFound .primaryButton:focus-visible {
+    outline: 3px solid rgba(167, 139, 250, 0.55);
+    outline-offset: 3px;
+}
+
+
+/* ============================================================
+   SALA ENCERRADA
+   ============================================================ */
+
+.roomClosedBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+
+    display: grid;
+    place-items: center;
+
+    padding: 20px;
+
+    background: rgba(3, 3, 7, 0.92);
+    backdrop-filter: blur(9px);
+
+    pointer-events: all;
+}
+
+
+.roomClosedModal {
+    width: min(100%, 460px);
+
+    padding: clamp(28px, 7vw, 42px);
+
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 20px;
+
+    background:
+        radial-gradient(
+            circle at top,
+            rgba(124, 58, 237, 0.16),
+            transparent 48%
+        ),
+        #15151d;
+
+    box-shadow:
+        0 28px 80px rgba(0, 0, 0, 0.62),
+        0 0 50px rgba(239, 68, 68, 0.08);
+
+    text-align: center;
+}
+
+
+.roomClosedIcon {
+    width: 62px;
+    height: 62px;
+
+    display: grid;
+    place-items: center;
+
+    margin: 0 auto 20px;
+
+    border: 1px solid rgba(248, 113, 113, 0.32);
+    border-radius: 18px;
+
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+
+    font-size: 30px;
+    font-weight: 800;
+}
+
+
+.roomClosedModal h2 {
+    margin: 0;
+
+    color: #ffffff;
+
+    font-size: clamp(24px, 7vw, 30px);
+}
+
+
+.roomClosedModal p {
+    margin: 14px 0 26px;
+
+    color: #c4c4cd;
+
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+
+.roomClosedExitButton {
+    width: 100%;
+    min-height: 48px;
+
+    border: 1px solid #ef4444;
+    border-radius: 11px;
+
+    background: #dc2626;
+    color: #ffffff;
+
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+
+.roomClosedExitButton:hover {
+    background: #ef4444;
+    transform: translateY(-1px);
+}
+
+
+.roomClosedExitButton:focus-visible {
+    outline: 3px solid rgba(248, 113, 113, 0.5);
+    outline-offset: 3px;
 }
 
 
@@ -2114,6 +2275,20 @@
     border: 1px solid #3f4147;
     border-radius: 10px;
     background: #1e1f22;
+}
+
+
+.accessErrorCode {
+    display: block;
+
+    margin-bottom: 14px;
+
+    color: #8b5cf6;
+
+    font-size: clamp(48px, 14vw, 76px);
+    font-weight: 800;
+    line-height: 0.9;
+    letter-spacing: -0.05em;
 }
 
 .screenSelectionPreview,

@@ -17,7 +17,8 @@
         var(--color-background);
 }
 
-.hero__video {
+.hero__video,
+.hero__image {
     position: absolute;
 
     inset: 0;
@@ -257,11 +258,24 @@
 }
 
 
+@media (max-width: 1023px) {
+
+    .hero__image {
+        object-position: 63% center;
+    }
+
+}
+
+
 /* =========================
    MOBILE
 ========================= */
 
 @media (max-width: 768px) {
+
+    .hero__image {
+        object-position: 70% center;
+    }
 
     .hero {
         min-height: 100svh;

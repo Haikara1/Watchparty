@@ -1,13 +1,24 @@
-import { useState } from "react";
+import {
+    useEffect,
+    useRef,
+    useState
+} from "react";
 
 import {
+    useLocation,
     useNavigate
 } from "react-router-dom";
 
 import {
+    deleteRoom,
     getRooms,
     saveRooms
 } from "../../services/roomStorage";
+
+import realtimeService from "../../services/realtimeService";
+import {
+    getOrCreateConnectionId
+} from "../../services/participantIdentity";
 
 import styles from "./Salas.module.css";
 
@@ -15,10 +26,26 @@ import styles from "./Salas.module.css";
 function Salas() {
 
     const navigate = useNavigate();
+    const location = useLocation();
 
 
     const [rooms, setRooms] = useState(
         () => getRooms()
+    );
+
+    const [roomToDelete, setRoomToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState("");
+    const cancelDeleteButtonRef = useRef(null);
+    const deletionInProgressRef = useRef(false);
+    const capacityCheckInProgressRef = useRef(false);
+
+    const [roomBeingChecked, setRoomBeingChecked] = useState(null);
+    const [roomAccessError, setRoomAccessError] = useState(
+        () =>
+            location.state?.roomAccessError === "room-full"
+                ? "Não é possível entrar nesta sala, pois ela está cheia."
+                : ""
     );
 
 
@@ -28,13 +55,73 @@ function Salas() {
     ============================================================
     */
 
-    function handleEnterRoom(roomId) {
+    async function handleEnterRoom(room) {
 
-        navigate(
-            `/watch/${roomId}`
-        );
+        if (capacityCheckInProgressRef.current) {
+            return;
+        }
+
+        capacityCheckInProgressRef.current = true;
+        setRoomBeingChecked(room.id);
+        setRoomAccessError("");
+
+        try {
+            const roomIsFull =
+                await realtimeService.checkRoomCapacity(
+                    room.id,
+                    room.maxUsers,
+                    getOrCreateConnectionId()
+                );
+
+            if (roomIsFull) {
+                setRoomAccessError(
+                    "Não é possível entrar nesta sala, pois ela está cheia."
+                );
+                return;
+            }
+
+            navigate(`/watch/${room.id}`);
+        } catch (error) {
+            console.warn(
+                "Não foi possível pré-validar a capacidade da sala:",
+                error
+            );
+
+            navigate(`/watch/${room.id}`);
+        } finally {
+            capacityCheckInProgressRef.current = false;
+            setRoomBeingChecked(null);
+        }
 
     }
+
+
+    useEffect(() => {
+        if (location.state?.roomAccessError !== "room-full") {
+            return;
+        }
+
+        navigate(
+            location.pathname,
+            {
+                replace: true,
+                state: null
+            }
+        );
+    }, [location.pathname, location.state, navigate]);
+
+
+    useEffect(() => {
+        if (!roomAccessError) {
+            return undefined;
+        }
+
+        const timeoutId = setTimeout(() => {
+            setRoomAccessError("");
+        }, 5000);
+
+        return () => clearTimeout(timeoutId);
+    }, [roomAccessError]);
 
 
     /*
@@ -58,20 +145,9 @@ function Salas() {
     ============================================================
     */
 
-    function handleDeleteRoom(roomId) {
+    async function handleDeleteRoom(roomId) {
 
-        const confirmed =
-            window.confirm(
-                "Tem certeza que deseja excluir esta sala?"
-            );
-
-
-        if (!confirmed) {
-
-            return;
-
-        }
-
+        await deleteRoom(roomId);
 
         const updatedRooms =
             rooms.filter(
@@ -90,6 +166,97 @@ function Salas() {
         );
 
     }
+
+
+    function openDeleteModal(event, room) {
+
+        event.stopPropagation();
+        setDeleteError("");
+        setRoomToDelete(room);
+
+    }
+
+
+    function closeDeleteModal() {
+
+        if (deletionInProgressRef.current) {
+
+            return;
+
+        }
+
+        setDeleteError("");
+        setRoomToDelete(null);
+
+    }
+
+
+    async function confirmRoomDeletion() {
+
+        if (!roomToDelete || deletionInProgressRef.current) {
+
+            return;
+
+        }
+
+        deletionInProgressRef.current = true;
+        setIsDeleting(true);
+        setDeleteError("");
+
+        try {
+
+            await handleDeleteRoom(roomToDelete.id);
+            setRoomToDelete(null);
+
+        } catch (error) {
+
+            console.error("Erro ao excluir sala:", error);
+            setDeleteError(
+                "Não foi possível excluir a sala. Tente novamente."
+            );
+
+        } finally {
+
+            deletionInProgressRef.current = false;
+            setIsDeleting(false);
+
+        }
+
+    }
+
+
+    useEffect(() => {
+
+        if (!roomToDelete) {
+
+            return undefined;
+
+        }
+
+        cancelDeleteButtonRef.current?.focus();
+
+        function handleKeyDown(event) {
+
+            if (
+                event.key === "Escape" &&
+                !deletionInProgressRef.current
+            ) {
+
+                closeDeleteModal();
+
+            }
+
+        }
+
+        document.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+
+            document.removeEventListener("keydown", handleKeyDown);
+
+        };
+
+    }, [roomToDelete]);
 
 
     /*
@@ -188,6 +355,17 @@ function Salas() {
             </header>
 
 
+            {roomAccessError && (
+                <div
+                    className={styles.roomAccessError}
+                    role="alert"
+                >
+                    <span aria-hidden="true">!</span>
+                    {roomAccessError}
+                </div>
+            )}
+
+
             {/* ==================================================
                 CONTEÚDO
             ================================================== */}
@@ -279,9 +457,10 @@ function Salas() {
                                     <button
                                         type="button"
                                         className={styles.deleteButton}
-                                        onClick={() =>
-                                            handleDeleteRoom(
-                                                room.id
+                                        onClick={(event) =>
+                                            openDeleteModal(
+                                                event,
+                                                room
                                             )
                                         }
                                         aria-label={
@@ -349,16 +528,20 @@ function Salas() {
                                     className={styles.enterButton}
                                     onClick={() =>
                                         handleEnterRoom(
-                                            room.id
+                                            room
                                         )
                                     }
+                                    disabled={roomBeingChecked !== null}
                                 >
 
                                     <span>
                                         ▶
                                     </span>
 
-                                    Entrar na sala
+                                    {roomBeingChecked === room.id
+                                        ? "Verificando..."
+                                        : "Entrar na sala"
+                                    }
 
                                 </button>
 
@@ -371,6 +554,117 @@ function Salas() {
                 )}
 
             </section>
+
+
+            {roomToDelete && (
+
+                <div
+                    className={styles.modalBackdrop}
+                    onMouseDown={(event) => {
+
+                        if (event.target === event.currentTarget) {
+
+                            closeDeleteModal();
+
+                        }
+
+                    }}
+                >
+
+                    <div
+                        className={styles.deleteModal}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-room-title"
+                        aria-describedby="delete-room-description"
+                    >
+
+                        <button
+                            type="button"
+                            className={styles.modalCloseButton}
+                            onClick={closeDeleteModal}
+                            disabled={isDeleting}
+                            aria-label="Fechar"
+                        >
+                            &times;
+                        </button>
+
+
+                        <div
+                            className={styles.modalIcon}
+                            aria-hidden="true"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                            >
+                                <path d="M3 6h18" />
+                                <path d="M8 6V4h8v2" />
+                                <path d="M19 6l-1 14H6L5 6" />
+                                <path d="M10 11v5M14 11v5" />
+                            </svg>
+                        </div>
+
+
+                        <h2 id="delete-room-title">
+                            Excluir sala?
+                        </h2>
+
+
+                        <p id="delete-room-description">
+                            Tem certeza que deseja excluir{` `}
+                            <strong>“{roomToDelete.name}”</strong>?
+                        </p>
+
+
+                        <p className={styles.modalWarning}>
+                            Esta ação não poderá ser desfeita.
+                        </p>
+
+
+                        {deleteError && (
+
+                            <p className={styles.modalError} role="alert">
+                                {deleteError}
+                            </p>
+
+                        )}
+
+
+                        <div className={styles.modalActions}>
+
+                            <button
+                                ref={cancelDeleteButtonRef}
+                                type="button"
+                                className={styles.cancelDeleteButton}
+                                onClick={closeDeleteModal}
+                                disabled={isDeleting}
+                            >
+                                Cancelar
+                            </button>
+
+
+                            <button
+                                type="button"
+                                className={styles.confirmDeleteButton}
+                                onClick={confirmRoomDeletion}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting
+                                    ? "Excluindo..."
+                                    : "Excluir sala"
+                                }
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            )}
 
         </main>
 

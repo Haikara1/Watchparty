@@ -1,25 +1,48 @@
 import styles from "./Hero.module.css";
 import CreateRoom from "../CreateRoom/CreateRoom";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 function Hero() {
     const navigate = useNavigate();
+    const [useStaticBackground, setUseStaticBackground] = useState(
+        () => window.matchMedia("(max-width: 1023px)").matches
+    );
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia("(max-width: 1023px)");
+        const handleChange = event => setUseStaticBackground(event.matches);
+
+        mediaQuery.addEventListener("change", handleChange);
+
+        return () => {
+            mediaQuery.removeEventListener("change", handleChange);
+        };
+    }, []);
 
     return (
         <section className={styles.hero}>
 
-            <video
-                className={styles.hero__video}
-                autoPlay
-                muted
-                loop
-                playsInline
-            >
-                <source
-                    src="/videos/hero.mp4"
-                    type="video/mp4"
+            {useStaticBackground ? (
+                <img
+                    className={styles.hero__image}
+                    src="/bakcground.jfif"
+                    alt=""
                 />
-            </video>
+            ) : (
+                <video
+                    className={styles.hero__video}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                >
+                    <source
+                        src="/videos/hero.mp4"
+                        type="video/mp4"
+                    />
+                </video>
+            )}
 
 
             <div className={styles.hero__overlay}></div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
     useNavigate,
@@ -14,6 +14,7 @@ import realtimeService from "../../services/realtimeService";
 import screenShareService from "../../services/screenShareService";
 
 import {
+    getOrCreateConnectionId,
     getOrCreateParticipantId,
     getSavedUsername,
     normalizeUsername,
@@ -153,7 +154,8 @@ function ScreenSharePreview({
     isHostShare = false,
     canForceStop = false,
     onForceStop,
-    selectionCard = false
+    selectionCard = false,
+    snapshot = null
 }) {
 
     const videoRef = useRef(null);
@@ -162,7 +164,7 @@ function ScreenSharePreview({
 
         const video = videoRef.current;
 
-        if (!video) {
+        if (!video || selectionCard) {
             return;
         }
 
@@ -185,7 +187,7 @@ function ScreenSharePreview({
             }
         };
 
-    }, [share.stream]);
+    }, [share.stream, selectionCard]);
 
     return (
         <div
@@ -206,13 +208,25 @@ function ScreenSharePreview({
             aria-label={`Assistir ao compartilhamento de ${share.username}`}
             aria-pressed={isActive}
         >
-            <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                className={styles.screenPreviewVideo}
-            />
+            {selectionCard ? (
+                snapshot ? (
+                    <img
+                        src={snapshot}
+                        className={styles.shareSelectionSnapshot}
+                        alt=""
+                    />
+                ) : (
+                    <span className={styles.shareSelectionFallback}>🖥</span>
+                )
+            ) : (
+                <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className={styles.screenPreviewVideo}
+                />
+            )}
 
             <span className={styles.screenPreviewOverlay}>
                 <span className={styles.screenPreviewUsername}>
@@ -355,6 +369,13 @@ function WatchRoom() {
 
     const [isLoading, setIsLoading] = useState(true);
 
+    const [roomAccessStatus, setRoomAccessStatus] = useState("loading");
+
+    const [isRoomClosed, setIsRoomClosed] = useState(false);
+    const isRoomClosedRef = useRef(false);
+    const roomClosedExitButtonRef = useRef(null);
+    const roomExistenceCheckRef = useRef(false);
+
     const [authUserId, setAuthUserId] = useState(null);
 
     const isRoomOwner = Boolean(
@@ -374,7 +395,6 @@ function WatchRoom() {
     const [connectionStatus, setConnectionStatus] = useState(
         () => navigator.onLine ? "connecting" : "offline"
     );
-    const [roomFull, setRoomFull] = useState(false);
 
     const [canNativeShare] = useState(
         () =>
@@ -519,7 +539,7 @@ function WatchRoom() {
 
     const [participantId] = useState(getOrCreateParticipantId);
 
-    const [connectionId] = useState(() => crypto.randomUUID());
+    const [connectionId] = useState(getOrCreateConnectionId);
 
     const userIdRef = useRef(connectionId);
 
@@ -607,6 +627,47 @@ function WatchRoom() {
             document.removeEventListener("keydown", handleIdentityKeyDown);
         };
     }, [showIdentityModal, isEditingUsername]);
+
+    useEffect(() => {
+        if (!isRoomClosed) {
+            return undefined;
+        }
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        const focusFrame = requestAnimationFrame(() => {
+            roomClosedExitButtonRef.current?.focus();
+        });
+
+        function keepFocusInClosedRoomModal(event) {
+            const isExitActivation =
+                event.target === roomClosedExitButtonRef.current &&
+                (event.key === "Enter" || event.key === " ");
+
+            if (!isExitActivation) {
+                event.preventDefault();
+                event.stopPropagation();
+                roomClosedExitButtonRef.current?.focus();
+            }
+        }
+
+        document.addEventListener(
+            "keydown",
+            keepFocusInClosedRoomModal,
+            true
+        );
+
+        return () => {
+            cancelAnimationFrame(focusFrame);
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener(
+                "keydown",
+                keepFocusInClosedRoomModal,
+                true
+            );
+        };
+    }, [isRoomClosed]);
 
     function openUsernameEditor() {
         setUsernameDraft(username);
@@ -905,6 +966,11 @@ function WatchRoom() {
     const localScreenSnapshotUrlRef = useRef(null);
     const localScreenSnapshotRequestRef = useRef(0);
 
+    const [remoteShareSnapshots, setRemoteShareSnapshots] =
+        useState(() => new Map());
+
+    const remoteShareSnapshotEntriesRef = useRef(new Map());
+
     /*
     ============================================================
     PLAYER
@@ -1133,6 +1199,160 @@ function WatchRoom() {
                 URL.revokeObjectURL(localScreenSnapshotUrlRef.current);
                 localScreenSnapshotUrlRef.current = null;
             }
+        };
+    }, []);
+
+    const captureRemoteShareSnapshot = useCallback(async share => {
+        const token = Symbol(share.userId);
+        const previous = remoteShareSnapshotEntriesRef.current.get(share.userId);
+
+        if (previous?.url) {
+            URL.revokeObjectURL(previous.url);
+        }
+
+        remoteShareSnapshotEntriesRef.current.set(share.userId, {
+            stream: share.stream,
+            token,
+            url: null
+        });
+
+        const videoTrack = share.stream?.getVideoTracks?.()[0];
+
+        if (!videoTrack || videoTrack.readyState !== "live") {
+            return;
+        }
+
+        const video = document.createElement("video");
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = share.stream;
+
+        try {
+            await video.play();
+
+            if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+                await new Promise((resolve, reject) => {
+                    const finish = callback => {
+                        clearTimeout(timeoutId);
+                        video.removeEventListener("loadeddata", handleLoadedData);
+                        video.removeEventListener("error", handleError);
+                        callback();
+                    };
+                    const handleLoadedData = () => finish(resolve);
+                    const handleError = () => finish(() => {
+                        reject(new Error("Falha ao carregar o frame remoto."));
+                    });
+                    const timeoutId = setTimeout(() => finish(() => {
+                        reject(new Error("Tempo esgotado ao capturar o frame remoto."));
+                    }), 3000);
+
+                    video.addEventListener("loadeddata", handleLoadedData, { once: true });
+                    video.addEventListener("error", handleError, { once: true });
+                });
+            }
+
+            if (!video.videoWidth || !video.videoHeight) {
+                throw new Error("Frame remoto sem dimensões válidas.");
+            }
+
+            const mobileSnapshot = window.matchMedia("(max-width: 700px)").matches;
+            const maximumWidth = mobileSnapshot ? 640 : 960;
+            const maximumHeight = mobileSnapshot ? 360 : 540;
+            const scale = Math.min(
+                1,
+                maximumWidth / video.videoWidth,
+                maximumHeight / video.videoHeight
+            );
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+            canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+
+            const context = canvas.getContext("2d");
+
+            if (!context) {
+                throw new Error("Canvas indisponível para o snapshot remoto.");
+            }
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, "image/jpeg", 0.76);
+            });
+
+            if (!blob) {
+                throw new Error("Não foi possível gerar o snapshot remoto.");
+            }
+
+            const snapshotUrl = URL.createObjectURL(blob);
+            const current = remoteShareSnapshotEntriesRef.current.get(share.userId);
+
+            if (current?.token !== token || current.stream !== share.stream) {
+                URL.revokeObjectURL(snapshotUrl);
+                return;
+            }
+
+            current.url = snapshotUrl;
+            setRemoteShareSnapshots(snapshots => {
+                const next = new Map(snapshots);
+                next.set(share.userId, snapshotUrl);
+                return next;
+            });
+        } catch {
+            // O card mantém seu fallback estático.
+        } finally {
+            video.pause();
+            video.srcObject = null;
+        }
+    }, []);
+
+    useEffect(() => {
+        const sharesById = new Map(
+            remoteScreenShares.map(share => [share.userId, share])
+        );
+        let snapshotsChanged = false;
+
+        remoteShareSnapshotEntriesRef.current.forEach((entry, userId) => {
+            if (sharesById.get(userId)?.stream !== entry.stream) {
+                if (entry.url) {
+                    URL.revokeObjectURL(entry.url);
+                }
+
+                remoteShareSnapshotEntriesRef.current.delete(userId);
+                snapshotsChanged = true;
+            }
+        });
+
+        if (snapshotsChanged) {
+            setRemoteShareSnapshots(snapshots => {
+                const next = new Map(snapshots);
+
+                Array.from(next.keys()).forEach(userId => {
+                    if (!remoteShareSnapshotEntriesRef.current.has(userId)) {
+                        next.delete(userId);
+                    }
+                });
+
+                return next;
+            });
+        }
+
+        remoteScreenShares.forEach(share => {
+            if (!remoteShareSnapshotEntriesRef.current.has(share.userId)) {
+                void captureRemoteShareSnapshot(share);
+            }
+        });
+    }, [remoteScreenShares, captureRemoteShareSnapshot]);
+
+    useEffect(() => {
+        const entries = remoteShareSnapshotEntriesRef.current;
+
+        return () => {
+            entries.forEach(entry => {
+                if (entry.url) {
+                    URL.revokeObjectURL(entry.url);
+                }
+            });
+            entries.clear();
         };
     }, []);
 
@@ -3433,13 +3653,22 @@ function WatchRoom() {
         async function loadRoom() {
 
             setIsLoading(true);
+            setRoomAccessStatus("loading");
+            isRoomClosedRef.current = false;
+            setIsRoomClosed(false);
 
             try {
 
-                const [foundRoom, session] = await Promise.all([
-                    getRoomById(roomId),
-                    realtimeService.ensureAnonymousSession()
-                ]);
+                const session =
+                    await realtimeService.ensureAnonymousSession();
+
+                const foundRoom =
+                    await getRoomById(
+                        roomId,
+                        {
+                            allowCacheFallback: false
+                        }
+                    );
 
                 if (!isActive) {
                     return;
@@ -3447,6 +3676,12 @@ function WatchRoom() {
 
                 setRoom(
                     foundRoom || null
+                );
+
+                setRoomAccessStatus(
+                    foundRoom
+                        ? "validating"
+                        : "not-found"
                 );
 
                 setAuthUserId(session?.user?.id || null);
@@ -3460,6 +3695,7 @@ function WatchRoom() {
 
                 if (isActive) {
                     setRoom(null);
+                    setRoomAccessStatus("not-found");
                 }
 
             } finally {
@@ -3480,6 +3716,7 @@ function WatchRoom() {
                 }
 
                 setRoom(null);
+                setRoomAccessStatus("not-found");
                 setIsLoading(false);
             });
         }
@@ -3608,7 +3845,6 @@ function WatchRoom() {
             !roomId ||
             !room?.ownerId ||
             !authUserId ||
-            !identityReady ||
             room.id !== roomId
         ) {
             return;
@@ -3642,11 +3878,65 @@ function WatchRoom() {
 
         channelRef.current = channel;
 
+        let resolveInitialPresence;
+        let rejectInitialPresence;
+
+        const initialPresence = new Promise((resolve, reject) => {
+            resolveInitialPresence = resolve;
+            rejectInitialPresence = reject;
+        });
+
+        const initialPresenceTimeoutId = setTimeout(() => {
+            rejectInitialPresence(
+                new Error("Tempo limite ao validar a capacidade da sala.")
+            );
+        }, 10000);
+
         const removeConnectionStatusListener = realtimeService.onConnectionStatus(
             channel,
             status => {
                 if (isActive && navigator.onLine) {
                     setConnectionStatus(status);
+                }
+
+                if (
+                    status !== "connected" ||
+                    !hasTrackedPresenceRef.current ||
+                    roomExistenceCheckRef.current
+                ) {
+                    return;
+                }
+
+                roomExistenceCheckRef.current = true;
+
+                void getRoomById(
+                    roomId,
+                    {
+                        allowCacheFallback: false
+                    }
+                ).then(existingRoom => {
+                    if (isActive && !existingRoom) {
+                        isRoomClosedRef.current = true;
+                        setIsRoomClosed(true);
+                    }
+                }).catch(error => {
+                    console.warn(
+                        "[Sala] Não foi possível revalidar a sala após reconectar:",
+                        error
+                    );
+                }).finally(() => {
+                    roomExistenceCheckRef.current = false;
+                });
+            }
+        );
+
+        realtimeService.onRoomDeleted(
+            channel,
+            roomId,
+            () => {
+                if (isActive && hasTrackedPresenceRef.current) {
+                    isRoomClosedRef.current = true;
+                    setIsRoomClosed(true);
                 }
             }
         );
@@ -3659,7 +3949,12 @@ function WatchRoom() {
             channel,
             message => {
 
-                if (!isActive || !message) {
+                if (
+                    !isActive ||
+                    isRoomClosedRef.current ||
+                    !hasTrackedPresenceRef.current ||
+                    !message
+                ) {
                     return;
                 }
 
@@ -3692,7 +3987,18 @@ function WatchRoom() {
             channel,
             state => {
 
-                if (!isActive) {
+                if (resolveInitialPresence) {
+                    clearTimeout(initialPresenceTimeoutId);
+                    resolveInitialPresence(state || {});
+                    resolveInitialPresence = null;
+                    rejectInitialPresence = null;
+                }
+
+                if (
+                    !isActive ||
+                    isRoomClosedRef.current ||
+                    !hasTrackedPresenceRef.current
+                ) {
                     return;
                 }
 
@@ -3797,7 +4103,11 @@ function WatchRoom() {
             channel,
             payload => {
 
-                if (!isActive) {
+                if (
+                    !isActive ||
+                    isRoomClosedRef.current ||
+                    !hasTrackedPresenceRef.current
+                ) {
                     return;
                 }
 
@@ -3811,7 +4121,11 @@ function WatchRoom() {
             channel,
             payload => {
 
-                if (!isActive) {
+                if (
+                    !isActive ||
+                    isRoomClosedRef.current ||
+                    !hasTrackedPresenceRef.current
+                ) {
                     return;
                 }
 
@@ -3827,7 +4141,11 @@ function WatchRoom() {
             channel,
             signal => {
 
-                if (!isActive) {
+                if (
+                    !isActive ||
+                    isRoomClosedRef.current ||
+                    !hasTrackedPresenceRef.current
+                ) {
                     return;
                 }
 
@@ -3861,20 +4179,44 @@ function WatchRoom() {
 
                 try {
 
-                    const existingPresence = Object.values(
-                        channel.presenceState?.() || {}
-                    ).flat().filter(Boolean);
-                    const alreadyPresent = existingPresence.some(
-                        participant => participant.userId === userIdRef.current
-                    );
+                    const initialPresenceState =
+                        await initialPresence;
 
-                    if (
-                        !alreadyPresent &&
-                        Number(room.maxUsers) > 0 &&
-                        existingPresence.length >= Number(room.maxUsers)
-                    ) {
-                        setRoomFull(true);
-                        setConnectionStatus("connected");
+                    if (!isActive) {
+                        return;
+                    }
+
+                    const roomIsFull =
+                        realtimeService.isRoomAtCapacity(
+                            initialPresenceState,
+                            room.maxUsers,
+                            userIdRef.current
+                        );
+
+                    if (roomIsFull) {
+                        setConnectionStatus("disconnected");
+
+                        channelRef.current = null;
+                        await realtimeService.disconnect(channel);
+
+                        navigate(
+                            "/salas",
+                            {
+                                replace: true,
+                                state: {
+                                    roomAccessError: "room-full"
+                                }
+                            }
+                        );
+                        return;
+                    }
+
+                    if (!identityReady) {
+                        channelRef.current = null;
+                        await realtimeService.disconnect(channel);
+
+                        setRoomAccessStatus("allowed");
+                        setConnectionStatus("disconnected");
                         return;
                     }
 
@@ -3884,7 +4226,7 @@ function WatchRoom() {
                     );
 
                     hasTrackedPresenceRef.current = true;
-                    setRoomFull(false);
+                    setRoomAccessStatus("allowed");
                     setConnectionStatus("connected");
 
                 } catch (error) {
@@ -3893,10 +4235,21 @@ function WatchRoom() {
                         "[Presence] Erro:",
                         error
                     );
+
+                    if (isActive) {
+                        channelRef.current = null;
+                        await realtimeService.disconnect(channel);
+                        navigate(
+                            "/salas",
+                            {
+                                replace: true
+                            }
+                        );
+                    }
                 }
 
             })
-            .catch(error => {
+            .catch(async error => {
 
                 if (!isActive) {
                     return;
@@ -3907,6 +4260,15 @@ function WatchRoom() {
                     error
                 );
                 setConnectionStatus(navigator.onLine ? "error" : "offline");
+
+                channelRef.current = null;
+                await realtimeService.disconnect(channel);
+                navigate(
+                    "/salas",
+                    {
+                        replace: true
+                    }
+                );
 
             })
             .finally(() => {
@@ -3924,6 +4286,8 @@ function WatchRoom() {
         return () => {
 
             isActive = false;
+
+            clearTimeout(initialPresenceTimeoutId);
 
             isConnectingRef.current =
                 false;
@@ -3982,7 +4346,7 @@ function WatchRoom() {
             }
         };
 
-    }, [roomId, room, authUserId, identityReady, participantId]);
+    }, [roomId, room, authUserId, identityReady, participantId, navigate]);
 
     /*
     ============================================================
@@ -4086,10 +4450,10 @@ function WatchRoom() {
     */
 
     function handleGoHome() {
-        navigate("/");
+        navigate("/salas");
     }
 
-    async function handleLeaveRoom() {
+    async function handleLeaveRoom({ replace = false } = {}) {
         screenSelectionRequestRef.current += 1;
 
         if (pendingScreenShareStreamRef.current) {
@@ -4110,7 +4474,12 @@ function WatchRoom() {
             await realtimeService.disconnect(activeChannel);
         }
 
-        navigate("/salas");
+        navigate(
+            "/salas",
+            {
+                replace
+            }
+        );
     }
 
     /*
@@ -4119,7 +4488,11 @@ function WatchRoom() {
     ============================================================
     */
 
-    if (isLoading) {
+    if (
+        isLoading ||
+        roomAccessStatus === "loading" ||
+        roomAccessStatus === "validating"
+    ) {
 
         return (
             <main className={styles.page}>
@@ -4137,7 +4510,7 @@ function WatchRoom() {
     ============================================================
     */
 
-    if (!room) {
+    if (roomAccessStatus === "not-found" || !room) {
 
         return (
             <main className={styles.page}>
@@ -4146,11 +4519,14 @@ function WatchRoom() {
                         🎬
                     </div>
 
-                    <h1>Sala não encontrada</h1>
+                    <span className={styles.accessErrorCode}>404</span>
+
+                    <h1>
+                        Essa sala não existe ou foi excluída pelo criador da mesma.
+                    </h1>
 
                     <p>
-                        A sala que você tentou acessar
-                        não existe ou foi removida.
+                        Verifique o link ou escolha outra sala disponível.
                     </p>
 
                     <button
@@ -4158,7 +4534,7 @@ function WatchRoom() {
                         className={styles.primaryButton}
                         onClick={handleGoHome}
                     >
-                        Voltar para o início
+                        Voltar para Salas
                     </button>
                 </div>
             </main>
@@ -4170,21 +4546,6 @@ function WatchRoom() {
     INTERFACE
     ============================================================
     */
-
-    if (roomFull) {
-        return (
-            <main className={styles.page}>
-                <div className={styles.notFound} role="status">
-                    <div className={styles.notFoundIcon}>👥</div>
-                    <h1>Sala cheia</h1>
-                    <p>Esta sala atingiu o limite de participantes. Tente novamente mais tarde.</p>
-                    <button type="button" className={styles.primaryButton} onClick={handleGoHome}>
-                        Voltar para o início
-                    </button>
-                </div>
-            </main>
-        );
-    }
 
     const currentUser =
         participants.find(
@@ -4833,6 +5194,7 @@ function WatchRoom() {
                                                 participant.isHost
                                         )}
                                         selectionCard
+                                        snapshot={remoteShareSnapshots.get(share.userId) || null}
                                     />
                                 ))}
                             </div>
@@ -5676,6 +6038,42 @@ function WatchRoom() {
                             </button>
                         </footer>
                     </div>
+                </div>
+            )}
+
+            {isRoomClosed && (
+                <div className={styles.roomClosedBackdrop}>
+                    <section
+                        className={styles.roomClosedModal}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="room-closed-title"
+                        aria-describedby="room-closed-description"
+                    >
+                        <div
+                            className={styles.roomClosedIcon}
+                            aria-hidden="true"
+                        >
+                            !
+                        </div>
+
+                        <h2 id="room-closed-title">
+                            Sala encerrada
+                        </h2>
+
+                        <p id="room-closed-description">
+                            Esta sala foi fechada e/ou excluída pelo seu criador. Clique em SAIR para ser direcionado para a página de salas.
+                        </p>
+
+                        <button
+                            ref={roomClosedExitButtonRef}
+                            type="button"
+                            className={styles.roomClosedExitButton}
+                            onClick={() => void handleLeaveRoom({ replace: true })}
+                        >
+                            SAIR
+                        </button>
+                    </section>
                 </div>
             )}
 

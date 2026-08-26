@@ -312,7 +312,12 @@ O localStorage é utilizado somente como fallback caso
 a consulta ao banco falhe.
 */
 
-export async function getRoomById(roomId) {
+export async function getRoomById(
+    roomId,
+    {
+        allowCacheFallback = true
+    } = {}
+) {
 
     if (!roomId) {
 
@@ -425,7 +430,13 @@ export async function getRoomById(roomId) {
 
         return room;
 
-    } catch {
+    } catch (error) {
+
+        if (!allowCacheFallback) {
+
+            throw error;
+
+        }
 
         /*
         ====================================================
@@ -626,4 +637,43 @@ export async function updateRoomPlayback(
 
     }
 
+}
+
+
+/*
+============================================================
+EXCLUIR SALA
+============================================================
+*/
+
+export async function deleteRoom(roomId) {
+
+    if (!roomId) {
+        throw new Error("roomId é obrigatório para excluir a sala.");
+    }
+
+    await realtimeService.ensureAnonymousSession();
+
+    const {
+        data,
+        error
+    } = await supabase
+        .from("rooms")
+        .delete()
+        .eq("id", roomId)
+        .select("id")
+        .maybeSingle();
+
+    if (error) {
+        console.error("[Supabase] Erro ao excluir sala:", error);
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error(
+            "A sala não foi encontrada ou você não possui permissão para excluí-la."
+        );
+    }
+
+    return data;
 }

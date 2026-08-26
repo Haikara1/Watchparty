@@ -962,6 +962,30 @@ const realtimeService = {
     },
 
 
+    onRoomDeleted(
+        channel,
+        roomId,
+        callback
+    ) {
+
+        if (!channel || !roomId || typeof callback !== "function") {
+            return null;
+        }
+
+        return channel.on(
+            "postgres_changes",
+            {
+                event: "DELETE",
+                schema: "public",
+                table: "rooms",
+                filter: `id=eq.${roomId}`
+            },
+            payload => callback(payload)
+        );
+
+    },
+
+
     /*
     ========================================================
     DESCONECTAR CANAL
@@ -1678,6 +1702,80 @@ const realtimeService = {
 
 
         return channel.presenceState();
+
+    },
+
+
+    isRoomAtCapacity(
+        presenceState,
+        maxUsers,
+        currentConnectionId = null
+    ) {
+
+        const limit = Number(maxUsers);
+
+        if (!Number.isFinite(limit) || limit <= 0) {
+            return false;
+        }
+
+        const presences = Object.values(
+            presenceState || {}
+        ).flat().filter(Boolean);
+
+        const activeConnectionIds = new Set(
+            presences
+                .map(presence => presence?.userId)
+                .filter(Boolean)
+        );
+
+        if (
+            currentConnectionId &&
+            activeConnectionIds.has(currentConnectionId)
+        ) {
+            return false;
+        }
+
+        return activeConnectionIds.size >= limit;
+
+    },
+
+
+    async checkRoomCapacity(
+        roomId,
+        maxUsers,
+        currentConnectionId = null
+    ) {
+
+        const channel = this.createRoomChannel(roomId);
+        let timeoutId = null;
+
+        const initialPresence = new Promise((resolve, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(
+                    new Error("Tempo limite ao verificar a capacidade da sala.")
+                );
+            }, 10000);
+
+            this.onPresenceChange(channel, state => {
+                clearTimeout(timeoutId);
+                resolve(state || {});
+            });
+        });
+
+        try {
+            await this.connect(channel);
+
+            const presenceState = await initialPresence;
+
+            return this.isRoomAtCapacity(
+                presenceState,
+                maxUsers,
+                currentConnectionId
+            );
+        } finally {
+            clearTimeout(timeoutId);
+            await this.disconnect(channel);
+        }
 
     }
 

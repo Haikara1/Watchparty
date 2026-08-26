@@ -1,5 +1,23 @@
 const PARTICIPANT_ID_KEY = "watchparty_participant_id";
 const USERNAME_KEY = "watchparty_username";
+const ROOM_CONNECTION_ID_KEY = "watchparty_room_connection_id";
+
+
+export function getOrCreateConnectionId() {
+    try {
+        const storedId = sessionStorage.getItem(ROOM_CONNECTION_ID_KEY);
+
+        if (storedId) {
+            return storedId;
+        }
+
+        const connectionId = crypto.randomUUID();
+        sessionStorage.setItem(ROOM_CONNECTION_ID_KEY, connectionId);
+        return connectionId;
+    } catch {
+        return crypto.randomUUID();
+    }
+}
 
 export function getOrCreateParticipantId() {
     const storedId = localStorage.getItem(PARTICIPANT_ID_KEY)?.trim();
