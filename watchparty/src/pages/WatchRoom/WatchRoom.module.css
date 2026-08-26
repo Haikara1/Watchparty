@@ -1591,16 +1591,21 @@
 
 
 /* ============================================================
-   TOAST DE COMPARTILHAMENTO
+   STATUS DE COMPARTILHAMENTO
    ============================================================ */
 
+.localShareControls {
+    min-width: 0;
+
+    display: flex;
+    align-items: stretch;
+
+    gap: 8px;
+}
+
 .screenSharingToast {
-    position: fixed;
-
-    left: 50%;
-    bottom: 76px;
-
-    z-index: 100;
+    max-width: min(520px, 40vw);
+    min-width: 0;
 
     display: flex;
     align-items: center;
@@ -1609,15 +1614,10 @@
 
     padding: 8px 10px;
 
-    transform: translateX(-50%);
-
     border: 1px solid #3f4147;
     border-radius: 5px;
 
     background: #1e1f22;
-
-    box-shadow:
-        0 8px 25px rgba(0, 0, 0, 0.35);
 
     color: #dbdee1;
 
@@ -1633,11 +1633,13 @@
     background: #23a559;
 }
 
-.screenSharingToast button {
-    padding: 4px 8px;
+.localShareStopButton {
+    min-height: 38px;
+
+    padding: 8px 14px;
 
     border: 0;
-    border-radius: 4px;
+    border-radius: 5px;
 
     background: #ed4245;
 
@@ -1645,11 +1647,13 @@
 
     cursor: pointer;
 
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
+
+    white-space: nowrap;
 }
 
-.screenSharingToast button:hover {
+.localShareStopButton:hover {
     background: #c73537;
 }
 
@@ -2044,15 +2048,14 @@
 .connectionPoor { background: rgba(237, 66, 69, 0.2); color: #fa7779; }
 
 .screenSharingToast::after {
-    content: attr(data-quality);
+    content: "- " attr(data-quality);
     color: #b5bac1;
     font-size: 10px;
 }
 
 .screenSharingToast::before {
     content: attr(data-adaptive);
-    color: #f0b232;
-    font-size: 10px;
+    display: none;
 }
 
 @media (max-width: 1150px) {
@@ -2162,6 +2165,10 @@
         min-height: 58px;
 
         padding: 0 8px;
+    }
+
+    .bottomBarLocalShare {
+        min-height: 108px;
     }
 
     .bottomLeft,
@@ -2281,12 +2288,28 @@
         width: 34px;
     }
 
+    .localShareControls {
+        max-width: calc(100vw - 240px);
+
+        flex-direction: column;
+
+        gap: 6px;
+    }
+
     .screenSharingToast {
-        width: calc(100% - 20px);
+        max-width: 100%;
+
+        flex-wrap: wrap;
 
         justify-content: center;
 
-        bottom: 70px;
+        gap: 4px 6px;
+
+        padding: 4px 6px;
+    }
+
+    .localShareStopButton {
+        width: 100%;
     }
 }
 
@@ -2318,6 +2341,14 @@
 
     .bottomRight .bottomControl:nth-child(2) {
         display: none;
+    }
+
+    .bottomBarLocalShare {
+        min-height: 128px;
+    }
+
+    .localShareControls {
+        max-width: calc(100vw - 160px);
     }
 
     .noStreamIcon {

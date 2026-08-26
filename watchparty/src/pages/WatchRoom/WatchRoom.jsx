@@ -4608,23 +4608,6 @@ function WatchRoom() {
                                             ✕
                                         </button>
 
-                                        {hasLocalScreenShare && (
-                                            <button
-                                                type="button"
-                                                className={
-                                                    styles.stopButton
-                                                }
-                                                onClick={
-                                                    handleStopScreenShare
-                                                }
-                                            >
-                                                ■
-                                                <span>
-                                                    Parar meu compartilhamento
-                                                </span>
-                                            </button>
-                                        )}
-
                                     </div>
 
                                 </div>
@@ -4669,23 +4652,7 @@ function WatchRoom() {
                                     junto com você.
                                 </p>
 
-                                {hasLocalScreenShare ? (
-
-                                    <button
-                                        type="button"
-                                        className={
-                                            styles.shareScreenButton
-                                        }
-                                        onClick={
-                                            handleStopScreenShare
-                                        }
-                                    >
-                                        <span>■</span>
-                                        Parar meu compartilhamento
-                                    </button>
-
-                                ) : (
-
+                                {!hasLocalScreenShare && (
                                     <button
                                         type="button"
                                         className={
@@ -4755,7 +4722,13 @@ function WatchRoom() {
                         BARRA INFERIOR
                     ================================================== */}
 
-                    <div className={styles.bottomBar}>
+                    <div
+                        className={`${styles.bottomBar} ${
+                            hasLocalScreenShare
+                                ? styles.bottomBarLocalShare
+                                : ""
+                        }`}
+                    >
 
                         <div className={styles.bottomLeft}>
 
@@ -4793,42 +4766,46 @@ function WatchRoom() {
 
                         <div className={styles.bottomCenter}>
 
-                            <button
-                                type="button"
-                                className={`${styles.bottomMainControl} ${
-                                    hasLocalScreenShare
-                                        ? styles.bottomMainControlActive
-                                        : ""
-                                }`}
-                                onClick={
-                                    hasLocalScreenShare
-                                        ? handleStopScreenShare
-                                        : handleStartScreenShare
-                                }
-                                disabled={
-                                    !hasLocalScreenShare &&
-                                    Boolean(screenShareUnavailableReason)
-                                }
-                                title={
-                                    !hasLocalScreenShare
-                                        ? screenShareUnavailableReason
-                                        : ""
-                                }
-                            >
+                            {hasLocalScreenShare ? (
+                                <div
+                                    className={styles.localShareControls}
+                                >
+                                    <div
+                                        className={styles.screenSharingToast}
+                                        data-quality={`${formatStreamQuality(localScreenShareSettings)} • ${
+                                            localScreenShareSettings?.qualityMode === "fixed"
+                                                ? "Fixo"
+                                                : "Automático"
+                                        }`}
+                                        data-adaptive={adaptiveStatus || ""}
+                                    >
+                                        <span className={styles.toastIndicator} />
 
-                                <span>
-                                    {hasLocalScreenShare
-                                        ? "■"
-                                        : "🖥"}
-                                </span>
+                                        <span>
+                                            Você está compartilhando sua tela
+                                        </span>
+                                    </div>
 
-                                <span>
-                                    {hasLocalScreenShare
-                                        ? "Parar meu compartilhamento"
-                                        : "Compartilhar tela"}
-                                </span>
-
-                            </button>
+                                    <button
+                                        type="button"
+                                        className={styles.localShareStopButton}
+                                        onClick={handleStopScreenShare}
+                                    >
+                                        Parar meu compartilhamento
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className={styles.bottomMainControl}
+                                    onClick={handleStartScreenShare}
+                                    disabled={Boolean(screenShareUnavailableReason)}
+                                    title={screenShareUnavailableReason}
+                                >
+                                    <span>🖥</span>
+                                    <span>Compartilhar tela</span>
+                                </button>
+                            )}
 
                         </div>
 
@@ -5449,43 +5426,6 @@ function WatchRoom() {
                             </button>
                         </footer>
                     </div>
-                </div>
-            )}
-
-            {/* ==================================================
-                STATUS LOCAL
-            ================================================== */}
-
-            {hasLocalScreenShare && (
-                <div
-                    className={styles.screenSharingToast}
-                    data-quality={`${formatStreamQuality(localScreenShareSettings)} • ${
-                        localScreenShareSettings?.qualityMode === "fixed"
-                            ? "Fixo"
-                            : "Automático"
-                    }`}
-                    data-adaptive={adaptiveStatus || ""}
-                >
-
-                    <span
-                        className={
-                            styles.toastIndicator
-                        }
-                    />
-
-                    <span>
-                        Você está compartilhando sua tela
-                    </span>
-
-                    <button
-                        type="button"
-                        onClick={
-                            handleStopScreenShare
-                        }
-                    >
-                        Parar meu compartilhamento
-                    </button>
-
                 </div>
             )}
 
