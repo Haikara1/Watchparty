@@ -885,6 +885,8 @@ function WatchRoom() {
 
     const playerContainerRef = useRef(null);
 
+    const orientationLockRef = useRef(false);
+
     const [isPlaying, setIsPlaying] = useState(false);
 
     const [volume, setVolume] = useState(1);
@@ -1286,6 +1288,23 @@ function WatchRoom() {
 
                 await container.requestFullscreen();
 
+                if (
+                    window.matchMedia("(max-width: 768px)").matches &&
+                    typeof screen.orientation?.lock === "function"
+                ) {
+                    try {
+                        await screen.orientation.lock("landscape");
+
+                        if (document.fullscreenElement === container) {
+                            orientationLockRef.current = true;
+                        } else {
+                            screen.orientation.unlock?.();
+                        }
+                    } catch {
+                        orientationLockRef.current = false;
+                    }
+                }
+
             } else {
 
                 await document.exitFullscreen();
@@ -1306,9 +1325,23 @@ function WatchRoom() {
 
         function handleFullscreenChange() {
 
-            setIsFullscreen(
-                Boolean(document.fullscreenElement)
-            );
+            const fullscreenActive =
+                Boolean(document.fullscreenElement);
+
+            setIsFullscreen(fullscreenActive);
+
+            if (
+                !fullscreenActive &&
+                orientationLockRef.current
+            ) {
+                try {
+                    screen.orientation?.unlock?.();
+                } catch {
+                    // Fullscreen remains unaffected without orientation support.
+                }
+
+                orientationLockRef.current = false;
+            }
         }
 
         document.addEventListener(
@@ -1322,6 +1355,16 @@ function WatchRoom() {
                 "fullscreenchange",
                 handleFullscreenChange
             );
+
+            if (orientationLockRef.current) {
+                try {
+                    screen.orientation?.unlock?.();
+                } catch {
+                    // Fullscreen remains unaffected without orientation support.
+                }
+
+                orientationLockRef.current = false;
+            }
 
         };
 

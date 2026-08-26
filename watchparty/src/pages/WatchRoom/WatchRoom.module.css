@@ -2333,8 +2333,19 @@
    ============================================================ */
 
 .screenArea:fullscreen {
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
+
+    max-width: none;
+    max-height: none;
+
+    flex: none;
+
+    margin: 0;
+    padding: 0;
+
+    border: 0;
+    border-radius: 0;
 
     background: #000000;
 }
@@ -2342,6 +2353,11 @@
 .screenArea:fullscreen .screenVideo {
     width: 100%;
     height: 100%;
+
+    max-width: none;
+    max-height: none;
+
+    object-fit: contain;
 }
 
 
