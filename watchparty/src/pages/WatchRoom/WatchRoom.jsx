@@ -891,7 +891,7 @@ function WatchRoom() {
 
     const [volume, setVolume] = useState(1);
 
-    const [isMuted, setIsMuted] = useState(true);
+    const [isMuted, setIsMuted] = useState(false);
 
     const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -943,29 +943,29 @@ function WatchRoom() {
 
             video.volume = volume;
 
-            /*
-            O stream remoto começa mutado para
-            evitar bloqueio de autoplay.
-            */
-
-            video.muted = true;
-
             const playVideo = async () => {
 
                 try {
-
-                    setIsMuted(true);
 
                     await video.play();
 
                     setIsPlaying(true);
 
-                } catch (error) {
+                } catch {
 
-                    console.warn(
-                        "[ScreenShare] Autoplay bloqueado:",
-                        error
-                    );
+                    if (!video.muted) {
+                        try {
+                            video.muted = true;
+                            setIsMuted(true);
+
+                            await video.play();
+
+                            setIsPlaying(true);
+                            return;
+                        } catch {
+                            // A próxima interação do usuário pode iniciar o vídeo.
+                        }
+                    }
 
                     setIsPlaying(false);
                 }
@@ -4413,6 +4413,7 @@ function WatchRoom() {
                         ref={playerContainerRef}
                         className={styles.screenArea}
                         onMouseMove={resetControlsTimeout}
+                        onTouchStart={resetControlsTimeout}
                         onMouseEnter={() =>
                             setShowControls(true)
                         }
@@ -4425,7 +4426,6 @@ function WatchRoom() {
                                 <video
                                     ref={remoteVideoRef}
                                     autoPlay
-                                    muted
                                     playsInline
                                     className={
                                         styles.screenVideo
@@ -4441,9 +4441,11 @@ function WatchRoom() {
                                 {/* TRANSMISSOR */}
 
                                 <div
-                                    className={
-                                        styles.streamInfo
-                                    }
+                                    className={`${styles.streamInfo} ${
+                                        showControls
+                                            ? styles.streamInfoVisible
+                                            : ""
+                                    }`}
                                 >
 
                                     <div
