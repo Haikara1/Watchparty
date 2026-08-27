@@ -32,9 +32,6 @@ const ADAPTIVE_PROFILES = [
     { id: "high", label: "Alta", maxBitrate: 4_500_000, maxFramerate: 60, scaleResolutionDownBy: 1 }
 ];
 
-const MAX_SIMULTANEOUS_SCREEN_SHARES = 3;
-
-
 function getAdaptiveProfile(index, settings) {
     const base = ADAPTIVE_PROFILES[index];
     const selectedFps = Number(settings?.selectedFps) || 30;
@@ -2552,8 +2549,12 @@ function WatchRoom() {
     const activeScreenShareCount =
         remoteScreenShares.length + (isScreenSharing ? 1 : 0);
 
+    const maxConcurrentScreenShares = Number(room?.maxUsers);
+
     const isScreenShareLimitReached =
-        activeScreenShareCount >= MAX_SIMULTANEOUS_SCREEN_SHARES;
+        Number.isFinite(maxConcurrentScreenShares) &&
+        maxConcurrentScreenShares > 0 &&
+        activeScreenShareCount >= maxConcurrentScreenShares;
 
     const screenShareUnavailableReason =
         isCurrentUserScreenShareBlocked
@@ -2711,10 +2712,7 @@ function WatchRoom() {
             return;
         }
 
-        if (
-            remoteScreenShares.length + (isScreenSharing ? 1 : 0) >=
-            MAX_SIMULTANEOUS_SCREEN_SHARES
-        ) {
+        if (isScreenShareLimitReached) {
             showSharePermissionNotice(
                 "Limite de transmissões simultâneas atingido."
             );
@@ -2794,10 +2792,7 @@ function WatchRoom() {
             return;
         }
 
-        if (
-            remoteScreenShares.length + (isScreenSharing ? 1 : 0) >=
-            MAX_SIMULTANEOUS_SCREEN_SHARES
-        ) {
+        if (isScreenShareLimitReached) {
             showSharePermissionNotice(
                 "Limite de transmissões simultâneas atingido."
             );
