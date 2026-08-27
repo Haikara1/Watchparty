@@ -477,9 +477,7 @@ function VideoPlayer({
         }
 
 
-        console.log(
-            "[VideoPlayer] 🔄 Usuário liberou sincronização remota."
-        );
+
 
 
         remoteActionRef.current =
@@ -567,9 +565,7 @@ function VideoPlayer({
                 }
 
 
-                console.log(
-                    "[VideoPlayer] ▶ Autoplay remoto liberado pelo usuário."
-                );
+
 
 
                 setAutoplayBlocked(false);
@@ -659,9 +655,7 @@ function VideoPlayer({
             "play"
         ) {
 
-            console.log(
-                "[VideoPlayer] ▶ PLAY remoto aplicado."
-            );
+
 
 
             remoteActionRef.current =
@@ -679,10 +673,7 @@ function VideoPlayer({
         ========================================================
         */
 
-        console.log(
-            "[VideoPlayer] ▶ PLAY local:",
-            video.currentTime
-        );
+
 
 
         if (onPlay) {
@@ -736,9 +727,7 @@ function VideoPlayer({
             "pause"
         ) {
 
-            console.log(
-                "[VideoPlayer] ⏸ PAUSE remoto aplicado."
-            );
+
 
 
             remoteActionRef.current =
@@ -756,10 +745,7 @@ function VideoPlayer({
         ========================================================
         */
 
-        console.log(
-            "[VideoPlayer] ⏸ PAUSE local:",
-            video.currentTime
-        );
+
 
 
         if (onPause) {
@@ -1080,10 +1066,7 @@ function VideoPlayer({
                 difference > 0.5
             ) {
 
-                console.log(
-                    "[VideoPlayer] ⏩ SEEK remoto:",
-                    remoteTime
-                );
+
 
 
                 remoteActionRef.current =
@@ -1135,9 +1118,7 @@ function VideoPlayer({
                 !playPromiseRef.current
             ) {
 
-                console.log(
-                    "[VideoPlayer] ▶ Aplicando PLAY remoto"
-                );
+
 
 
                 remoteActionRef.current =
@@ -1166,9 +1147,7 @@ function VideoPlayer({
                         }
 
 
-                        console.log(
-                            "[VideoPlayer] ▶ PLAY remoto executado."
-                        );
+
 
 
                         setAutoplayBlocked(
@@ -1231,9 +1210,7 @@ function VideoPlayer({
                 !video.paused
             ) {
 
-                console.log(
-                    "[VideoPlayer] ⏸ Aplicando PAUSE remoto"
-                );
+
 
 
                 remoteActionRef.current =

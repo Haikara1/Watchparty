@@ -17,7 +17,6 @@
         var(--color-background);
 }
 
-.hero__video,
 .hero__image {
     position: absolute;
 

@@ -265,10 +265,7 @@ export async function saveRoom(room) {
         );
 
 
-        console.log(
-            "[Supabase] Sala criada com sucesso:",
-            data
-        );
+
 
 
         return mapSupabaseRoom(data);
@@ -422,10 +419,7 @@ export async function getRoomById(
         );
 
 
-        console.log(
-            "[Supabase] Sala carregada com sucesso:",
-            room
-        );
+
 
 
         return room;
@@ -613,14 +607,7 @@ export async function updateRoomPlayback(
         );
 
 
-        console.log(
-            "[Supabase] Playback atualizado:",
-            {
-                roomId,
-                currentTime,
-                isPlaying
-            }
-        );
+
 
 
         return updatedRoom;

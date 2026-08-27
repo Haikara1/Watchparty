@@ -882,10 +882,7 @@ function WatchRoom() {
     }
 
     function handleLeaveRemoteScreenShare() {
-        console.log("[ScreenShare] LEAVE REMOTE solicitado", {
-            connectionId: userIdRef.current,
-            activeScreenShareId
-        });
+
         setIsPlaying(false);
         setConnectionQuality(null);
         setActiveScreenShareId(null);
@@ -1863,7 +1860,7 @@ function WatchRoom() {
         if (intervalId) {
             clearInterval(intervalId);
             outgoingStatsIntervalsRef.current.delete(userId);
-            console.log("[ScreenShare][Adaptive] Monitor encerrado:", userId);
+
         }
 
         outgoingStatsPreviousRef.current.delete(userId);
@@ -1905,11 +1902,7 @@ function WatchRoom() {
 
             peerQualityProfileRef.current.set(userId, profileIndex);
             peerLastAdaptationRef.current.set(userId, getCurrentTimestamp());
-            console.log(
-                "[ScreenShare][Adaptive] Perfil alterado:",
-                userId,
-                profile.id
-            );
+
             refreshAdaptiveStatus();
             return true;
         } catch (error) {
@@ -2017,11 +2010,7 @@ function WatchRoom() {
             counters.poor = quality === "poor" ? counters.poor + 1 : 0;
             peerQualityCountersRef.current.set(userId, counters);
 
-            console.log(
-                "[ScreenShare][Adaptive] Qualidade avaliada:",
-                userId,
-                quality
-            );
+
 
             const maximumIndex = getMaximumAdaptiveProfileIndex();
             const currentIndex = peerQualityProfileRef.current.get(userId) ?? maximumIndex;
@@ -2074,7 +2063,7 @@ function WatchRoom() {
         }, 2750);
 
         outgoingStatsIntervalsRef.current.set(userId, intervalId);
-        console.log("[ScreenShare][Adaptive] Monitor iniciado:", userId);
+
     }
 
     function getPeerStateKey(userId, direction) {
@@ -2255,10 +2244,7 @@ function WatchRoom() {
         peerRecoveryAttemptsRef.current.set(key, attempts + 1);
         peerRecoveryInProgressRef.current.add(key);
 
-        console.log(
-            "[ScreenShare] ICE restart iniciado:",
-            remoteUserId
-        );
+
 
         try {
             peerConnection.restartIce?.();
@@ -2292,10 +2278,7 @@ function WatchRoom() {
                 }
             );
 
-            console.log(
-                "[ScreenShare] ICE restart concluído:",
-                remoteUserId
-            );
+
 
         } catch (error) {
             console.warn(
@@ -2332,11 +2315,7 @@ function WatchRoom() {
             return;
         }
 
-        console.log(
-            "[ScreenShare] Peer temporariamente desconectado:",
-            direction,
-            userId
-        );
+
 
         const timeoutId = setTimeout(() => {
             peerDisconnectTimersRef.current.delete(key);
@@ -2390,22 +2369,11 @@ function WatchRoom() {
         }
 
         if (state === "connected" || state === "completed") {
-            const hadTimer = peerDisconnectTimersRef.current.has(
-                getPeerStateKey(userId, direction)
-            );
-
             cancelPeerDisconnectCleanup(userId, direction);
             peerRecoveryAttemptsRef.current.delete(
                 getPeerStateKey(userId, direction)
             );
 
-            if (hadTimer) {
-                console.log(
-                    "[ScreenShare] Peer reconectado:",
-                    direction,
-                    userId
-                );
-            }
             return;
         }
 
@@ -2676,10 +2644,7 @@ function WatchRoom() {
             return;
         }
 
-        console.log("[ScreenShare] FORCE STOP solicitado", {
-            connectionId: userIdRef.current,
-            targetId
-        });
+
 
         await sendScreenShareAdminSignal("force-stop", targetId);
     }
@@ -2766,10 +2731,7 @@ function WatchRoom() {
         setScreenSelectionError("");
 
         try {
-            console.log("[ScreenShare][AUDIT] getDisplayMedia solicitado", {
-                connectionId: userIdRef.current,
-                reason: "user-click"
-            });
+
 
             const stream = await screenShareService.startScreenShare();
 
@@ -2920,9 +2882,7 @@ function WatchRoom() {
                 stream;
             localScreenShareOwnerRef.current = userIdRef.current;
 
-            console.log("[ScreenShare][AUDIT] localScreenStream definida", {
-                connectionId: userIdRef.current
-            });
+
 
             localScreenShareSettingsRef.current = actualSettings;
             localScreenShareQualityModeRef.current = screenShareQualityMode;
@@ -3022,11 +2982,7 @@ function WatchRoom() {
             return;
         }
 
-        console.log("[ScreenShare] STOP LOCAL solicitado", {
-            connectionId: userIdRef.current,
-            activeScreenShareId,
-            hasLocalStream: true
-        });
+
 
         isStoppingScreenShareRef.current = true;
 
@@ -3133,10 +3089,7 @@ function WatchRoom() {
                 peerConnection,
                 stream => {
 
-                    console.log("[ScreenShare][AUDIT] remote stream recebida", {
-                        connectionId: userIdRef.current,
-                        senderId: remoteUserId
-                    });
+
 
                     addRemoteScreenShare(
                         remoteUserId,
@@ -3147,11 +3100,7 @@ function WatchRoom() {
 
                     stream.getTracks().forEach(track => {
                         track.onended = () => {
-                            console.log(
-                                "[ScreenShare] Track remota encerrada:",
-                                remoteUserId,
-                                track.kind
-                            );
+
 
                             queueMicrotask(() => {
                                 if (

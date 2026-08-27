@@ -70,10 +70,7 @@ export async function runRoomsRlsInsertTest() {
         }
 
 
-        console.log(
-            "[RLS Test] INSERT bem-sucedido. ID da sala:",
-            data.id
-        );
+
 
 
         return data.id;

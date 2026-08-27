@@ -143,3 +143,8 @@ video {
     background: var(--color-primary);
     color: #fff;
 }
+
+/* Reserva a viewport durante o carregamento de páginas divididas por rota. */
+.route-loading {
+    min-height: 100vh;
+}

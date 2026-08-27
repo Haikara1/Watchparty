@@ -48,9 +48,7 @@ const screenShareService = {
             });
 
 
-        console.log(
-            "[ScreenShare] RTCPeerConnection criada."
-        );
+
 
 
         return peerConnection;
@@ -78,9 +76,7 @@ const screenShareService = {
         }
 
 
-        console.log(
-            "[ScreenShare] Solicitando captura de tela..."
-        );
+
 
 
         /*
@@ -120,21 +116,13 @@ const screenShareService = {
             stream.getAudioTracks();
 
 
-        console.log(
-            "[ScreenShare] Captura de tela iniciada."
-        );
 
 
-        console.log(
-            "[ScreenShare] Tracks de vídeo:",
-            videoTracks.length
-        );
 
 
-        console.log(
-            "[ScreenShare] Tracks de áudio:",
-            audioTracks.length
-        );
+
+
+
 
 
         /*
@@ -159,12 +147,6 @@ const screenShareService = {
                 "[ScreenShare] Nenhum track de áudio foi disponibilizado pelo navegador."
             );
 
-        } else {
-
-            console.log(
-                "[ScreenShare] Áudio da tela disponível."
-            );
-
         }
 
 
@@ -184,9 +166,7 @@ const screenShareService = {
                 "ended",
                 () => {
 
-                    console.log(
-                        "[ScreenShare] Track de vídeo encerrada."
-                    );
+
 
                 }
             );
@@ -216,9 +196,7 @@ const screenShareService = {
         }
 
 
-        console.log(
-            "[ScreenShare] Encerrando compartilhamento..."
-        );
+
 
 
         stream.getTracks().forEach(
@@ -241,9 +219,7 @@ const screenShareService = {
         );
 
 
-        console.log(
-            "[ScreenShare] Compartilhamento encerrado."
-        );
+
 
     },
 
@@ -273,21 +249,7 @@ const screenShareService = {
             stream.getTracks();
 
 
-        console.log(
-            "[ScreenShare] Adicionando tracks:",
-            tracks.map(
-                track => ({
-                    kind:
-                        track.kind,
 
-                    label:
-                        track.label,
-
-                    enabled:
-                        track.enabled
-                })
-            )
-        );
 
 
         tracks.forEach(
@@ -302,9 +264,7 @@ const screenShareService = {
         );
 
 
-        console.log(
-            "[ScreenShare] Stream adicionada à conexão."
-        );
+
 
     },
 
@@ -329,9 +289,7 @@ const screenShareService = {
         }
 
 
-        console.log(
-            "[ScreenShare] Criando SDP Offer..."
-        );
+
 
 
         if (
@@ -360,9 +318,7 @@ const screenShareService = {
         );
 
 
-        console.log(
-            "[ScreenShare] SDP Offer criada."
-        );
+
 
 
         return offer;
@@ -400,9 +356,7 @@ const screenShareService = {
         }
 
 
-        console.log(
-            "[ScreenShare] Aplicando SDP Offer..."
-        );
+
 
 
         await peerConnection.setRemoteDescription(
@@ -412,14 +366,10 @@ const screenShareService = {
         );
 
 
-        console.log(
-            "[ScreenShare] SDP Offer aplicada."
-        );
 
 
-        console.log(
-            "[ScreenShare] Criando SDP Answer..."
-        );
+
+
 
 
         const answer =
@@ -439,9 +389,7 @@ const screenShareService = {
         );
 
 
-        console.log(
-            "[ScreenShare] SDP Answer criada."
-        );
+
 
 
         return answer;
@@ -487,9 +435,7 @@ const screenShareService = {
         }
 
 
-        console.log(
-            "[ScreenShare] Aplicando SDP Answer..."
-        );
+
 
 
         await peerConnection.setRemoteDescription(
@@ -499,9 +445,7 @@ const screenShareService = {
         );
 
 
-        console.log(
-            "[ScreenShare] SDP Answer aplicada."
-        );
+
 
     },
 
@@ -623,11 +567,7 @@ const screenShareService = {
         peerConnection.ontrack =
             event => {
 
-                console.log(
-                    "[ScreenShare] Track remota recebida:",
-                    event.track.kind,
-                    event.track.label
-                );
+
 
 
                 /*
@@ -642,16 +582,7 @@ const screenShareService = {
 
                 if (remoteStream) {
 
-                    console.log(
-                        "[ScreenShare] Stream remota recebida:",
-                        {
-                            videoTracks:
-                                remoteStream.getVideoTracks().length,
 
-                            audioTracks:
-                                remoteStream.getAudioTracks().length
-                        }
-                    );
 
 
                     callback(
@@ -722,10 +653,7 @@ const screenShareService = {
                     peerConnection.connectionState;
 
 
-                console.log(
-                    "[ScreenShare] Estado WebRTC:",
-                    state
-                );
+
 
 
                 callback(
@@ -837,9 +765,7 @@ const screenShareService = {
         }
 
 
-        console.log(
-            "[ScreenShare] Fechando PeerConnection."
-        );
+
 
 
         try {

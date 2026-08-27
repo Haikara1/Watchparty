@@ -268,9 +268,7 @@ function scheduleReconnect(
                 }
 
 
-                console.log(
-                    "[Realtime] Tentando reconectar canal..."
-                );
+
 
 
                 try {
@@ -281,9 +279,7 @@ function scheduleReconnect(
                     );
 
 
-                    console.log(
-                        "[Realtime] Reconexão concluída com sucesso."
-                    );
+
 
                 } catch (error) {
 
@@ -420,9 +416,7 @@ function subscribeChannel(
                         );
 
 
-                        console.log(
-                            "[Realtime] Canal inscrito com sucesso."
-                        );
+
 
 
                         resolve(
@@ -468,16 +462,10 @@ function subscribeChannel(
                     channel.subscribe(
                         (status) => {
 
-                            console.log(
-                                "[Realtime] Status:",
-                                status
-                            );
 
 
-                            console.log(
-                                "[Realtime] Estado interno:",
-                                channel.state
-                            );
+
+
 
 
                             /*
@@ -595,9 +583,7 @@ function subscribeChannel(
                                     false;
 
 
-                                console.log(
-                                    "[Realtime] Canal fechado."
-                                );
+
 
 
                                 /*
@@ -703,47 +689,17 @@ const realtimeService = {
                     data.session.user.is_anonymous === true
                 ) {
 
-                    console.log(
-                        "[Auth] Usuário anônimo:",
-                        {
-                            id: data.session.user.id,
-                            is_anonymous:
-                                data.session.user.is_anonymous,
-                            role: data.session.user.role,
-                            aud: data.session.user.aud,
-                            provider:
-                                data.session.user.app_metadata?.provider
-                        }
-                    );
 
 
-                    console.log(
-                        "[Auth] Supabase URL:",
-                        supabaseUrl
-                    );
 
-                    console.log(
-                        "[Auth] Sessão anônima existente encontrada."
-                    );
+
+
+
 
 
                     return data.session;
 
                 }
-
-
-                if (data.session) {
-
-                    console.log(
-                        "[Auth] Sessão existente não é anônima."
-                    );
-
-                }
-
-
-                console.log(
-                    "[Auth] Nenhuma sessão válida. Criando sessão anônima..."
-                );
 
 
                 const {
@@ -772,9 +728,7 @@ const realtimeService = {
                 }
 
 
-                console.log(
-                    "[Auth] Sessão anônima criada com sucesso."
-                );
+
 
 
                 return signInData.session;
@@ -835,10 +789,7 @@ const realtimeService = {
         );
 
 
-        console.log(
-            "[Realtime] Canal criado:",
-            roomId
-        );
+
 
 
         return channel;
@@ -885,9 +836,7 @@ const realtimeService = {
             channel.state === "joined"
         ) {
 
-            console.log(
-                "[Realtime] Canal já está conectado."
-            );
+
 
 
             return channel;
@@ -895,9 +844,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Realtime] Conectando canal..."
-        );
+
 
 
         try {
@@ -1007,9 +954,7 @@ const realtimeService = {
             );
 
 
-        console.log(
-            "[Realtime] Desconectando canal."
-        );
+
 
 
         /*
@@ -1061,9 +1006,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Realtime] Canal desconectado."
-        );
+
 
     },
 
@@ -1117,10 +1060,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Realtime] Enviando evento:",
-            event
-        );
+
 
 
         try {
@@ -1137,10 +1077,7 @@ const realtimeService = {
                 });
 
 
-            console.log(
-                "[Realtime] Evento enviado:",
-                result
-            );
+
 
 
             return result;
@@ -1186,9 +1123,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Realtime] Registrando listener de playback."
-        );
+
 
 
         const listener =
@@ -1202,10 +1137,7 @@ const realtimeService = {
 
                 (payload) => {
 
-                    console.log(
-                        "[Realtime] Evento recebido:",
-                        payload
-                    );
+
 
 
                     const event =
@@ -1287,10 +1219,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Realtime] Enviando mensagem:",
-            message
-        );
+
 
 
         try {
@@ -1307,10 +1236,7 @@ const realtimeService = {
                 });
 
 
-            console.log(
-                "[Realtime] Mensagem enviada:",
-                result
-            );
+
 
 
             return result;
@@ -1356,9 +1282,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Realtime] Registrando listener de chat."
-        );
+
 
 
         const listener =
@@ -1372,10 +1296,7 @@ const realtimeService = {
 
                 (payload) => {
 
-                    console.log(
-                        "[Realtime] Mensagem recebida:",
-                        payload
-                    );
+
 
 
                     const message =
@@ -1457,10 +1378,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Presence] Registrando usuário:",
-            user
-        );
+
 
 
         try {
@@ -1471,10 +1389,7 @@ const realtimeService = {
                 );
 
 
-            console.log(
-                "[Presence] Usuário registrado:",
-                result
-            );
+
 
 
             return result;
@@ -1520,9 +1435,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Presence] Registrando listener de presença."
-        );
+
 
 
         const listener =
@@ -1540,10 +1453,7 @@ const realtimeService = {
                         channel.presenceState();
 
 
-                    console.log(
-                        "[Presence] Estado atualizado:",
-                        state
-                    );
+
 
 
                     callback(
@@ -1586,9 +1496,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Presence] Registrando listener de entrada."
-        );
+
 
 
         const listener =
@@ -1602,10 +1510,7 @@ const realtimeService = {
 
                 (payload) => {
 
-                    console.log(
-                        "[Presence] Usuário entrou:",
-                        payload
-                    );
+
 
 
                     callback(
@@ -1648,9 +1553,7 @@ const realtimeService = {
         }
 
 
-        console.log(
-            "[Presence] Registrando listener de saída."
-        );
+
 
 
         const listener =
@@ -1664,10 +1567,7 @@ const realtimeService = {
 
                 (payload) => {
 
-                    console.log(
-                        "[Presence] Usuário saiu:",
-                        payload
-                    );
+
 
 
                     callback(

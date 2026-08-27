@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import {
     BrowserRouter,
     Routes,
@@ -7,15 +8,13 @@ import {
 
 import Home from "./pages/Home";
 
-import Salas from "./pages/Salas/Salas";
-
 import Header from "./components/Header/Header";
 
 import Footer from "./components/Footer/Footer";
 
-import WatchRoom from "./pages/WatchRoom/WatchRoom";
-
-import CriarSala from "./pages/CriarSala/CriarSala";
+const Salas = lazy(() => import("./pages/Salas/Salas"));
+const CriarSala = lazy(() => import("./pages/CriarSala/CriarSala"));
+const WatchRoom = lazy(() => import("./pages/WatchRoom/WatchRoom"));
 
 
 function AppContent() {
@@ -49,6 +48,7 @@ function AppContent() {
                 ROTAS
             ================================================== */}
 
+            <Suspense fallback={<main className="route-loading" aria-busy="true" aria-label="Carregando" />}>
             <Routes>
 
 
@@ -96,6 +96,7 @@ function AppContent() {
 
 
             </Routes>
+            </Suspense>
 
 
             {/* ==================================================
@@ -128,4 +129,3 @@ function App() {
 
 
 export default App;
-
