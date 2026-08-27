@@ -2465,6 +2465,48 @@
 
 @media (max-width: 900px) {
 
+    .shareSelectionGrid {
+        max-width: 100%;
+
+        grid-template-columns: minmax(0, 700px);
+        justify-content: center;
+        align-content: start;
+
+        padding: 16px;
+
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .shareSelectionGrid[data-count="1"] {
+        max-width: 100%;
+        align-content: center;
+    }
+
+    .screenPreview.shareSelectionCard {
+        width: 100%;
+        min-width: 0;
+        max-width: 700px;
+        justify-self: center;
+    }
+
+    .shareSelectionAction {
+        background: transparent;
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .shareSelectionAction button {
+        width: auto;
+        max-width: calc(100% - 32px);
+        min-height: 44px;
+
+        padding: 0 18px;
+
+        font-size: 12px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38);
+    }
+
     .layout {
         grid-template-columns:
             180px
@@ -2487,16 +2529,9 @@
     .shareSelectionGrid {
         grid-template-columns: minmax(0, 1fr);
 
-        align-content: start;
-
         gap: 12px;
 
         padding: 12px;
-    }
-
-    .shareSelectionAction {
-        opacity: 1;
-        pointer-events: auto;
     }
 
     .shareAdminButton { opacity: 1; }
